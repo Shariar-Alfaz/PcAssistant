@@ -1,0 +1,785 @@
+@page "/assistant"
+@inject ICommandAiClient AiClient
+@inject ICommandParserService Parser
+@inject IWindowsCommandExecutor Executor
+@inject ICommandHistoryService CommandHistory
+@inject IDirectorySuggestionService DirectorySuggestions
+@inject ICommandSafetyValidator SafetyValidator
+@inject IJSRuntime JsRuntime
+@implements IDisposable
+
+<PageTitle>Assistant</PageTitle>
+
+<section class="min-w-0 space-y-5 text-slate-950 dark:text-slate-100">
+    <div class="flex min-w-0 flex-col gap-5">
+        <header class="overflow-hidden rounded-[2rem] border border-white/80 bg-white/[0.82] p-6 shadow-xl shadow-slate-900/[0.08] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08] dark:shadow-black/20">
+            <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <p class="text-sm font-semibold tracking-wide text-cyan-700 uppercase dark:text-cyan-300">Local PC Assistant</p>
+                    <h1 class="mt-1 text-3xl font-black text-slate-950 dark:text-white">Command Center</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
+                        Ask for safe local actions like creating folders, deleting folders with confirmation, or scheduling a restart.
+                    </p>
+                </div>
+                <div class="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200">
+                    FastAPI: http://127.0.0.1:8000
+                </div>
+            </div>
+        </header>
+
+        <div class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+            <section class="min-w-0 overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/[0.92] shadow-xl shadow-slate-900/[0.08] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/20">
+                <div class="flex min-h-[36rem] min-w-0 flex-col">
+                <div class="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+                    @if (_history.Count == 0)
+                    {
+                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600 dark:border-white/15 dark:bg-white/[0.06] dark:text-slate-300">
+                            Try: <span class="font-medium text-slate-900 dark:text-white">create a folder named Reports in downloads</span>
+                        </div>
+                    }
+
+                    @foreach (var item in _history)
+                    {
+                        <div class="flex justify-end">
+                            <div class="max-w-[85%] overflow-hidden rounded-2xl rounded-br-md bg-slate-950 px-4 py-3 text-sm text-white shadow-sm dark:bg-cyan-300 dark:text-slate-950 [overflow-wrap:anywhere]">
+                                @item.UserText
+                            </div>
+                        </div>
+
+                        <div class="flex justify-start">
+                            <div class="max-w-[92%] min-w-0 overflow-hidden rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-200">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="font-semibold text-slate-950 dark:text-white">@item.CommandLabel</span>
+                                    <span class="@ConfidenceClass(item.Confidence)">
+                                        @FormatConfidence(item.Confidence)
+                                    </span>
+                                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                                        @item.Source
+                                    </span>
+                                </div>
+                                <p class="mt-3 [overflow-wrap:anywhere]">@item.AssistantMessage</p>
+                                @if (!string.IsNullOrWhiteSpace(item.ResolvedPath))
+                                {
+                                    <p class="mt-3 max-w-full rounded-xl bg-slate-50 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap text-slate-700 dark:bg-slate-950/70 dark:text-slate-200 [overflow-wrap:anywhere]">@item.ResolvedPath</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(item.ExecutionMessage))
+                                {
+                                    <p class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200 [overflow-wrap:anywhere]">
+                                        @item.ExecutionStatus: @item.ExecutionMessage
+                                    </p>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="border-t border-slate-200 bg-white/[0.72] p-4 backdrop-blur sm:p-5 dark:border-white/10 dark:bg-slate-950/[0.72]">
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <div class="relative min-w-0 flex-1">
+                            <div class="flex min-h-12 w-full flex-wrap items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-950 shadow-sm transition focus-within:border-cyan-400 focus-within:ring-4 focus-within:ring-cyan-100 dark:border-white/10 dark:bg-white/[0.08] dark:text-white dark:focus-within:ring-cyan-300/15">
+                                @for (var chipIndex = 0; chipIndex < _selectedDirectories.Count; chipIndex++)
+                                {
+                                    var currentChipIndex = chipIndex;
+                                    var selectedDirectory = _selectedDirectories[chipIndex];
+                                    <span class="flex max-w-[38%] shrink-0 items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-1 text-cyan-950 dark:border-cyan-300/20 dark:bg-cyan-300/[0.14] dark:text-cyan-100">
+                                        <span class="@DirectoryChipIconClass(selectedDirectory.Kind)" aria-hidden="true">
+                                            @DirectoryIcon(selectedDirectory.Kind)
+                                        </span>
+                                        <span class="min-w-0">
+                                            <span class="block truncate leading-4 font-black text-[0.72rem]">@selectedDirectory.DisplayName</span>
+                                        </span>
+                                        <button class="flex size-4 shrink-0 items-center justify-center rounded-full text-[0.65rem] text-cyan-700 transition hover:bg-cyan-100 dark:text-cyan-100 dark:hover:bg-cyan-300/20"
+                                                type="button"
+                                                title="Remove this directory"
+                                                @onclick="() => RemoveSelectedDirectory(currentChipIndex)">
+                                            x
+                                        </button>
+                                    </span>
+                                }
+                                <input id="@CommandInputId"
+                                       class="min-h-8 min-w-0 flex-1 bg-transparent text-sm text-slate-950 outline-none placeholder:text-slate-400 disabled:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
+                                       placeholder="@CommandInputPlaceholder"
+                                       value="@_input"
+                                       @oninput="OnCommandInputAsync"
+                                       disabled="@_isBusy" />
+                            </div>
+                            @if (ShowDirectorySuggestions)
+                            {
+                                <div class="absolute right-0 bottom-full left-0 z-30 mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20 dark:border-white/10 dark:bg-slate-950">
+                                    <div class="border-b border-slate-100 px-3 py-2 text-xs font-bold tracking-[0.18em] text-slate-500 uppercase dark:border-white/10 dark:text-slate-400">
+                                        @_directorySuggestionTitle
+                                    </div>
+                                    <div class="max-h-64 overflow-y-auto p-1">
+                                        @for (var index = 0; index < _directorySuggestions.Count; index++)
+                                        {
+                                            var suggestionIndex = index;
+                                            var suggestion = _directorySuggestions[index];
+                                            <button class="@DirectorySuggestionClass(index)"
+                                                    type="button"
+                                                    @onmousedown:preventDefault
+                                                    @onclick="() => SelectDirectorySuggestionAsync(suggestionIndex)">
+                                                <span class="flex min-w-0 items-start gap-2">
+                                                    <span class="@DirectorySuggestionIconClass(suggestion.Kind)" aria-hidden="true">
+                                                        @if (suggestion.Kind == "drive")
+                                                        {
+                                                            <svg viewBox="0 0 24 24" fill="none">
+                                                                <path d="M5 5.5h14l2 7v5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-5l2-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                                                                <path d="M3 12.5h18M7 16h.01M10 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                                                            </svg>
+                                                        }
+                                                        else if (suggestion.Kind == "known-folder")
+                                                        {
+                                                            <svg viewBox="0 0 24 24" fill="none">
+                                                                <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v6A2.5 2.5 0 0 1 18 18.5H6A2.5 2.5 0 0 1 3.5 16v-8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                                                                <path d="m12 11 .75 1.55 1.7.25-1.22 1.2.28 1.68L12 14.88l-1.51.8.28-1.68-1.22-1.2 1.7-.25L12 11Z" fill="currentColor" />
+                                                            </svg>
+                                                        }
+                                                        else
+                                                        {
+                                                            <svg viewBox="0 0 24 24" fill="none">
+                                                                <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v6A2.5 2.5 0 0 1 18 18.5H6A2.5 2.5 0 0 1 3.5 16v-8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                                                            </svg>
+                                                        }
+                                                    </span>
+                                                    <span class="min-w-0">
+                                                        <span class="block truncate text-xs font-bold">@suggestion.DisplayName</span>
+                                                        <span class="block truncate font-mono text-[0.68rem] opacity-75">@suggestion.Path</span>
+                                                    </span>
+                                                </span>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        <button class="min-h-12 rounded-2xl bg-slate-950 px-6 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200 dark:disabled:bg-white/10 dark:disabled:text-slate-500"
+                                disabled="@IsSendDisabled"
+                                @onclick="SendAsync">
+                            @(_isBusy ? "Thinking..." : "Send")
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <p class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">@_errorMessage</p>
+                    }
+                </div>
+                </div>
+            </section>
+
+            <aside class="min-w-0 space-y-5">
+                <section class="min-w-0 rounded-[1.75rem] border border-white/70 bg-white/[0.86] p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08]">
+                    <h2 class="text-base font-semibold text-slate-950 dark:text-white">Prediction</h2>
+                    @if (_lastResponse is null)
+                    {
+                        <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">No command has been analyzed yet.</p>
+                    }
+                    else
+                    {
+                        <dl class="mt-4 space-y-3 text-sm">
+                            <div>
+                                <dt class="text-slate-500 dark:text-slate-400">Command label</dt>
+                                <dd class="mt-1 font-semibold text-slate-950 dark:text-white [overflow-wrap:anywhere]">@_effectiveLabel</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-500 dark:text-slate-400">Raw label</dt>
+                                <dd class="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200 [overflow-wrap:anywhere]">@_lastResponse.RawPredictedLabel</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-500 dark:text-slate-400">Confidence</dt>
+                                <dd class="mt-1"><span class="@ConfidenceClass(_lastResponse.Confidence)">@FormatConfidence(_lastResponse.Confidence)</span></dd>
+                            </div>
+                        </dl>
+                    }
+                </section>
+
+                @if (_pendingCommand is not null)
+                {
+                    <section class="@PanelClass">
+                        <h2 class="text-base font-semibold">@PanelTitle</h2>
+                        <p class="mt-3 text-sm leading-6 [overflow-wrap:anywhere]">@PanelMessage</p>
+
+                        @if (CanEditPendingPath)
+                        {
+                            <label class="mt-4 block text-xs font-bold tracking-[0.16em] uppercase opacity-75" for="pending-path">
+                                Target path
+                            </label>
+                            <input id="pending-path"
+                                   class="mt-2 min-h-11 w-full rounded-xl border border-slate-300 bg-white/80 px-3 font-mono text-xs text-slate-950 transition outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100 dark:border-white/10 dark:bg-slate-950/50 dark:text-white dark:focus:ring-cyan-300/15"
+                                   value="@_pendingPathText"
+                                   @oninput="OnPendingPathInput"
+                                   disabled="@_isExecuting" />
+                            @if (!string.IsNullOrWhiteSpace(_pendingPathError))
+                            {
+                                <p class="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">@_pendingPathError</p>
+                            }
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_pendingCommand.ResolvedPath))
+                        {
+                            <p class="mt-4 max-w-full rounded-xl bg-white/70 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap text-slate-700 dark:bg-slate-950/50 dark:text-slate-100 [overflow-wrap:anywhere]">@_pendingCommand.ResolvedPath</p>
+                        }
+
+                        @if (CanExecutePendingCommand)
+                        {
+                            <div class="mt-4 flex gap-3">
+                                <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-300 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 dark:disabled:bg-white/20 dark:disabled:text-slate-500"
+                                        disabled="@_isExecuting"
+                                        @onclick="ConfirmAsync">
+                                    @(_isExecuting ? "Running..." : "Confirm")
+                                </button>
+                                <button class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-100 dark:hover:bg-white/[0.12]"
+                                        disabled="@_isExecuting"
+                                        @onclick="CancelPending">
+                                    Cancel
+                                </button>
+                            </div>
+                        }
+                    </section>
+                }
+            </aside>
+        </div>
+    </div>
+</section>
+
+@code {
+    private const string CommandInputId = "assistant-command-input";
+
+    private readonly List<AssistantHistoryItem> _history = new();
+    private readonly List<DirectorySuggestion> _directorySuggestions = new();
+    private readonly List<DirectorySuggestion> _selectedDirectories = new();
+    private string _input = string.Empty;
+    private string _pendingPathText = string.Empty;
+    private string? _pendingPathError;
+    private bool _isBusy;
+    private bool _isExecuting;
+    private string? _errorMessage;
+    private CommandResponse? _lastResponse;
+    private ParsedCommand? _pendingCommand;
+    private Guid? _pendingCommandLogId;
+    private string _effectiveLabel = "unknown";
+    private bool _lowConfidenceRequiresConfirmation;
+    private int _selectedDirectoryIndex = -1;
+    private bool _showDirectorySuggestions;
+    private string _directorySuggestionTitle = "Directories";
+    private DotNetObjectReference<Assistant>? _directoryPickerReference;
+
+    private bool IsSendDisabled => _isBusy || string.IsNullOrWhiteSpace(BuildCommandText());
+
+    private string CommandInputPlaceholder => _selectedDirectories.Count == 0
+        ? "Type a PC command... use @dir:"
+        : "Continue command... use @folder:";
+
+    private bool CanExecutePendingCommand =>
+        _pendingCommand is not null
+        && !_pendingCommand.IsDangerous
+        && _pendingCommand.CommandLabel != "unknown";
+
+    private bool CanEditPendingPath =>
+        _pendingCommand?.CommandLabel is "filesystem.create_folder" or "filesystem.delete_folder";
+
+    private bool ShowDirectorySuggestions => _showDirectorySuggestions && _directorySuggestions.Count > 0;
+
+    private string PanelClass => _pendingCommand?.IsDangerous == true
+        ? "rounded-[1.75rem] border border-rose-200 bg-rose-50 p-5 text-rose-800 shadow-sm dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100"
+        : _pendingCommand?.RequiresConfirmation == true || _lowConfidenceRequiresConfirmation
+            ? "rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5 text-amber-900 shadow-sm dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100"
+            : "rounded-[1.75rem] border border-cyan-200 bg-cyan-50 p-5 text-cyan-900 shadow-sm dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-100";
+
+    private string PanelTitle => _pendingCommand?.IsDangerous == true
+        ? "Blocked command"
+        : _pendingCommand?.RequiresConfirmation == true || _lowConfidenceRequiresConfirmation
+            ? "Confirmation required"
+            : "Ready to execute";
+
+    private string PanelMessage => _pendingCommand?.Preview ?? "No command preview is available.";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _directoryPickerReference = DotNetObjectReference.Create(this);
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantDirectoryPicker.bind",
+            CommandInputId,
+            _directoryPickerReference);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var recentItems = await CommandHistory.ListRecentAsync(50);
+            _history.AddRange(recentItems.Select(AssistantHistoryItem.FromCommandHistory));
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not load command history: {ex.Message}";
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        var text = BuildCommandText();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _errorMessage = null;
+        _pendingCommand = null;
+        _pendingPathText = string.Empty;
+        _pendingPathError = null;
+        _lastResponse = null;
+        _lowConfidenceRequiresConfirmation = false;
+        _pendingCommandLogId = null;
+        ClearDirectorySuggestions();
+        var selectedDirectories = _selectedDirectories.ToArray();
+
+        try
+        {
+            var response = await AiClient.PredictAsync(text);
+            _lastResponse = response;
+
+            _effectiveLabel = response.Confidence < 0.60 ? "unknown" : response.CommandLabel;
+            _lowConfidenceRequiresConfirmation = response.Confidence >= 0.60 && response.Confidence < 0.80;
+            var requiresConfirmation = response.RequiresConfirmation || _lowConfidenceRequiresConfirmation;
+            var parsed = Parser.Parse(_effectiveLabel, text, requiresConfirmation);
+            _pendingCommand = parsed;
+            _pendingPathText = parsed.ResolvedPath ?? parsed.PathText ?? string.Empty;
+
+            var message = BuildPredictionMessage(response, parsed);
+            var historyItem = await CommandHistory.RecordPredictionAsync(
+                text,
+                response,
+                parsed,
+                _effectiveLabel,
+                message,
+                _lowConfidenceRequiresConfirmation);
+
+            _history.Add(AssistantHistoryItem.FromCommandHistory(historyItem));
+            _pendingCommandLogId = historyItem.Id;
+
+            _input = string.Empty;
+            if (selectedDirectories.Length > 0)
+            {
+                _selectedDirectories.Clear();
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_pendingCommand is null || !CanExecutePendingCommand)
+        {
+            return;
+        }
+
+        if (CanEditPendingPath)
+        {
+            RefreshPendingPath();
+            if (_pendingCommand is null || !CanExecutePendingCommand)
+            {
+                return;
+            }
+
+            if (_pendingCommandLogId is Guid pathUpdateLogId)
+            {
+                var updatedHistory = await CommandHistory.UpdatePlannedTargetAsync(
+                    pathUpdateLogId,
+                    _pendingCommand,
+                    BuildPendingAssistantMessage(_pendingCommand));
+                ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(updatedHistory));
+            }
+        }
+
+        _isExecuting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var result = await Executor.ExecuteAsync(_pendingCommand, confirmed: true);
+            if (_pendingCommandLogId is Guid commandLogId)
+            {
+                var historyItem = await CommandHistory.RecordExecutionAsync(commandLogId, result);
+                ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(historyItem));
+            }
+
+            _pendingCommand = null;
+            _pendingCommandLogId = null;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isExecuting = false;
+        }
+    }
+
+    private async Task CancelPending()
+    {
+        if (_pendingCommand is not null && _pendingCommandLogId is Guid commandLogId)
+        {
+            var historyItem = await CommandHistory.RecordCancellationAsync(commandLogId, "Command cancelled.");
+            ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(historyItem));
+        }
+
+        _pendingCommand = null;
+        _pendingCommandLogId = null;
+        _pendingPathText = string.Empty;
+        _pendingPathError = null;
+    }
+
+    private async Task OnCommandInputAsync(ChangeEventArgs args)
+    {
+        _input = args.Value?.ToString() ?? string.Empty;
+        await RefreshDirectorySuggestionsAsync();
+    }
+
+    private async Task RefreshDirectorySuggestionsAsync()
+    {
+        var trigger = FindDirectoryTrigger();
+        if (trigger is null)
+        {
+            ClearDirectorySuggestions();
+            return;
+        }
+
+        IReadOnlyList<DirectorySuggestion> suggestions;
+        if (trigger.Value.Token.Equals("@folder:", StringComparison.OrdinalIgnoreCase))
+        {
+            var currentPath = CurrentSelectedDirectoryPath;
+            if (string.IsNullOrWhiteSpace(currentPath))
+            {
+                ClearDirectorySuggestions();
+                return;
+            }
+
+            var queryPath = string.IsNullOrWhiteSpace(trigger.Value.Query)
+                ? currentPath
+                : Path.Combine(currentPath, trigger.Value.Query);
+            suggestions = (await DirectorySuggestions.SuggestAsync(queryPath, 32))
+                .Where(suggestion => !PathsEqual(suggestion.Path, currentPath))
+                .Select(suggestion => suggestion with { Kind = "folder" })
+                .ToArray();
+            _directorySuggestionTitle = "Folders";
+        }
+        else
+        {
+            suggestions = await DirectorySuggestions.SuggestAsync(trigger.Value.Query, 32);
+            _directorySuggestionTitle = "Directories";
+        }
+
+        _directorySuggestions.Clear();
+        _directorySuggestions.AddRange(suggestions);
+        _selectedDirectoryIndex = _directorySuggestions.Count > 0 ? 0 : -1;
+        _showDirectorySuggestions = _directorySuggestions.Count > 0;
+    }
+
+    [JSInvokable]
+    public async Task<bool> HandleDirectoryPickerKeyAsync(string key)
+    {
+        if (!ShowDirectorySuggestions)
+        {
+            return false;
+        }
+
+        switch (key)
+        {
+            case "ArrowDown":
+                _selectedDirectoryIndex = Math.Min(_selectedDirectoryIndex + 1, _directorySuggestions.Count - 1);
+                StateHasChanged();
+                return true;
+            case "ArrowUp":
+                _selectedDirectoryIndex = Math.Max(_selectedDirectoryIndex - 1, 0);
+                StateHasChanged();
+                return true;
+            case "Tab":
+            case "Enter":
+                await SelectDirectorySuggestionAsync(_selectedDirectoryIndex < 0 ? 0 : _selectedDirectoryIndex);
+                return true;
+            case "Escape":
+                ClearDirectorySuggestions();
+                StateHasChanged();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private Task SelectDirectorySuggestionAsync(int index)
+    {
+        if (index < 0 || index >= _directorySuggestions.Count)
+        {
+            return Task.CompletedTask;
+        }
+
+        var trigger = FindDirectoryTrigger();
+        var selectedDirectory = _directorySuggestions[index];
+        if (trigger?.Token.Equals("@folder:", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            _selectedDirectories.Add(selectedDirectory with { Kind = "folder" });
+        }
+        else
+        {
+            _selectedDirectories.Clear();
+            _selectedDirectories.Add(selectedDirectory);
+        }
+
+        _input = trigger is not null
+            ? _input[..trigger.Value.Index].TrimEnd()
+            : _input;
+
+        ClearDirectorySuggestions();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private string BuildCommandText()
+    {
+        var commandText = _input.Trim();
+        var selectedPath = CurrentSelectedDirectoryPath;
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return commandText;
+        }
+
+        return string.IsNullOrWhiteSpace(commandText)
+            ? selectedPath
+            : $"{commandText} {selectedPath}".Trim();
+    }
+
+    private string? CurrentSelectedDirectoryPath => _selectedDirectories.Count == 0
+        ? null
+        : _selectedDirectories[^1].Path;
+
+    private void RemoveSelectedDirectory(int index)
+    {
+        if (index < 0 || index >= _selectedDirectories.Count)
+        {
+            return;
+        }
+
+        _selectedDirectories.RemoveRange(index, _selectedDirectories.Count - index);
+    }
+
+    private string DirectorySuggestionClass(int index)
+    {
+        var selectedClasses = index == _selectedDirectoryIndex
+            ? "bg-cyan-50 text-cyan-950 dark:bg-cyan-300 dark:text-slate-950"
+            : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/[0.08]";
+
+        return $"block w-full rounded-xl px-2.5 py-1.5 text-left transition {selectedClasses}";
+    }
+
+    private static string DirectorySuggestionIconClass(string kind)
+    {
+        var colorClass = kind switch
+        {
+            "drive" => "bg-indigo-50 text-indigo-700 dark:bg-indigo-400/[0.14] dark:text-indigo-200",
+            "known-folder" => "bg-amber-50 text-amber-700 dark:bg-amber-400/[0.14] dark:text-amber-200",
+            _ => "bg-slate-100 text-slate-600 dark:bg-white/[0.1] dark:text-slate-200",
+        };
+
+        return $"mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4 {colorClass}";
+    }
+
+    private static string DirectoryChipIconClass(string kind)
+    {
+        var colorClass = kind switch
+        {
+            "drive" => "bg-indigo-100 text-indigo-700 dark:bg-indigo-300/[0.2] dark:text-indigo-100",
+            "known-folder" => "bg-amber-100 text-amber-700 dark:bg-amber-300/[0.2] dark:text-amber-100",
+            _ => "bg-cyan-100 text-cyan-700 dark:bg-cyan-300/[0.2] dark:text-cyan-100",
+        };
+
+        return $"flex size-5 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5 {colorClass}";
+    }
+
+    private AssistantDirectoryTrigger? FindDirectoryTrigger()
+    {
+        var directoryIndex = _input.LastIndexOf("@dir:", StringComparison.OrdinalIgnoreCase);
+        var folderIndex = _input.LastIndexOf("@folder:", StringComparison.OrdinalIgnoreCase);
+
+        if (directoryIndex < 0 && folderIndex < 0)
+        {
+            return null;
+        }
+
+        var token = folderIndex > directoryIndex ? "@folder:" : "@dir:";
+        var index = folderIndex > directoryIndex ? folderIndex : directoryIndex;
+        var query = _input[(index + token.Length)..].Trim();
+        return new AssistantDirectoryTrigger(index, token, query);
+    }
+
+    private static bool PathsEqual(string first, string second)
+    {
+        return first.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Equals(
+                second.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static MarkupString DirectoryIcon(string kind)
+    {
+        var icon = kind == "drive"
+            ? """
+              <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 5.5h14l2 7v5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-5l2-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                  <path d="M3 12.5h18M7 16h.01M10 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+              </svg>
+              """
+            : """
+              <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v6A2.5 2.5 0 0 1 18 18.5H6A2.5 2.5 0 0 1 3.5 16v-8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+              </svg>
+              """;
+
+        return new MarkupString(icon);
+    }
+
+    private void ClearDirectorySuggestions()
+    {
+        _directorySuggestions.Clear();
+        _selectedDirectoryIndex = -1;
+        _showDirectorySuggestions = false;
+    }
+
+    private void OnPendingPathInput(ChangeEventArgs args)
+    {
+        _pendingPathText = args.Value?.ToString() ?? string.Empty;
+        RefreshPendingPath();
+    }
+
+    private void RefreshPendingPath()
+    {
+        if (_pendingCommand is null || !CanEditPendingPath)
+        {
+            return;
+        }
+
+        var validation = SafetyValidator.ValidateFileSystemTarget(_pendingPathText);
+        var targetPath = validation.ResolvedPath ?? _pendingPathText.Trim();
+        var isBlocked = !validation.IsAllowed || string.IsNullOrWhiteSpace(validation.ResolvedPath);
+        _pendingPathError = isBlocked ? validation.Message ?? "The folder path is blocked." : null;
+        _pendingCommand = CreateEditedPathCommand(_pendingCommand, targetPath, isBlocked, _pendingPathError);
+    }
+
+    private static ParsedCommand CreateEditedPathCommand(
+        ParsedCommand command,
+        string targetPath,
+        bool isBlocked,
+        string? errorMessage)
+    {
+        return new ParsedCommand
+        {
+            CommandLabel = command.CommandLabel,
+            OriginalText = command.OriginalText,
+            FolderName = string.IsNullOrWhiteSpace(targetPath) ? command.FolderName : Path.GetFileName(targetPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+            LocationAlias = command.LocationAlias,
+            LocationType = command.LocationType,
+            PathText = targetPath,
+            ResolvedPath = string.IsNullOrWhiteSpace(targetPath) ? null : targetPath,
+            RequiresConfirmation = command.RequiresConfirmation,
+            IsDangerous = isBlocked,
+            Preview = isBlocked
+                ? errorMessage ?? "The folder path is blocked."
+                : BuildPathPreview(command.CommandLabel, targetPath),
+            ErrorMessage = isBlocked ? errorMessage : null,
+        };
+    }
+
+    private static string BuildPathPreview(string commandLabel, string targetPath)
+    {
+        return commandLabel == "filesystem.delete_folder"
+            ? $"Delete folder: {targetPath}"
+            : $"Create folder: {targetPath}";
+    }
+
+    private static string BuildPendingAssistantMessage(ParsedCommand command)
+    {
+        if (command.IsDangerous)
+        {
+            return command.ErrorMessage ?? "This command was blocked for safety.";
+        }
+
+        return command.RequiresConfirmation
+            ? $"Please confirm before running. {command.Preview}"
+            : command.Preview;
+    }
+
+    private static string BuildPredictionMessage(CommandResponse response, ParsedCommand parsed)
+    {
+        if (response.Confidence < 0.60 || parsed.CommandLabel == "unknown")
+        {
+            return "I could not understand this as a PC command. Please rephrase it.";
+        }
+
+        if (parsed.IsDangerous)
+        {
+            return parsed.ErrorMessage ?? "This command was blocked for safety.";
+        }
+
+        if (response.Confidence < 0.80)
+        {
+            return $"Low confidence prediction. Please confirm before running. {parsed.Preview}";
+        }
+
+        return parsed.RequiresConfirmation
+            ? $"Please confirm before running. {parsed.Preview}"
+            : parsed.Preview;
+    }
+
+    private static string FormatConfidence(double confidence)
+    {
+        return $"{confidence:P0}";
+    }
+
+    private static string ConfidenceClass(double confidence)
+    {
+        if (confidence < 0.60)
+        {
+            return "rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-400/[0.12] dark:text-rose-200";
+        }
+
+        if (confidence < 0.80)
+        {
+            return "rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-400/[0.12] dark:text-amber-200";
+        }
+
+        return "rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-400/[0.12] dark:text-emerald-200";
+    }
+
+    public void Dispose()
+    {
+        _directoryPickerReference?.Dispose();
+    }
+
+    private void ReplaceHistoryItem(AssistantHistoryItem item)
+    {
+        var index = _history.FindIndex(existingItem => existingItem.Id == item.Id);
+        if (index >= 0)
+        {
+            _history[index] = item;
+            return;
+        }
+
+        _history.Add(item);
+    }
+
+}
+
+

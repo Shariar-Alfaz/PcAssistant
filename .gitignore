@@ -22,6 +22,9 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+/publish/
+/out/
+/dist/
 
 # .NET Core
 project.lock.json
@@ -40,6 +43,8 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
+.DS_Store
+Thumbs.db
 
 # MSBuild Binary and Structured Log
 *.binlog
@@ -52,3 +57,76 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Visual Studio / Rider / JetBrains
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+_ReSharper*/
+*.DotSettings.user
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# .NET MAUI / mobile packaging
+*.apk
+*.aab
+*.ipa
+*.app
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.pfx
+*.keystore
+*.jks
+*.mobileprovision
+*.cer
+*.p12
+
+# FastAPI / Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+pip-wheel-metadata/
+*.egg-info/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+appsettings.Development.json
+appsettings.*.local.json
+
+# Tooling caches
+.cache/
+.parcel-cache/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

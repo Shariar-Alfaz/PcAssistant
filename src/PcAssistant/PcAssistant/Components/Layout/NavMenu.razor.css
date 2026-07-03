@@ -1,0 +1,12 @@
+.nav-icon {
+    align-items: center;
+    display: inline-flex;
+    height: 1.25rem;
+    justify-content: center;
+    width: 1.25rem;
+}
+
+.nav-icon svg {
+    height: 1.25rem;
+    width: 1.25rem;
+}

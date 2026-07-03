@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "tailwind:build": "tailwindcss -i ./src/PcAssistant/PcAssistant/Styles/tailwind.css -o ./src/PcAssistant/PcAssistant/wwwroot/css/tailwind.css --minify",
+    "tailwind:watch": "tailwindcss -i ./src/PcAssistant/PcAssistant/Styles/tailwind.css -o ./src/PcAssistant/PcAssistant/wwwroot/css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.11",
+    "tailwindcss": "^4.1.11"
+  }
+}

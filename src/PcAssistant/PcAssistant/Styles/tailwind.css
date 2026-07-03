@@ -1,0 +1,10 @@
+@import "tailwindcss" source(none);
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@source "../Components/**/*.razor";
+@source "../Components/**/*.razor.css";
+@source "../wwwroot/**/*.html";
+@source "../**/*.cs";
+@source not "../bin";
+@source not "../obj";
