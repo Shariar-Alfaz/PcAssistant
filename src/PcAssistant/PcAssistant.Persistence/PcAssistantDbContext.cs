@@ -4,7 +4,7 @@ using PcAssistant.Domain;
 
 namespace PcAssistant.Persistence;
 
-public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> options) : DbContext(options)
+public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> options) : DbContext(options), IPcAssistantDbContext
 {
     private static readonly ValueConverter<DateTimeOffset, long> DateTimeOffsetToUnixMilliseconds =
         new(
@@ -18,8 +18,41 @@ public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> 
 
     public DbSet<CommandLogEntry> CommandLogs => Set<CommandLogEntry>();
 
+    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+
+    public void ClearTrackedChanges()
+    {
+        ChangeTracker.Clear();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ChatSession>(entity =>
+        {
+            entity.ToTable("chat_sessions");
+            entity.HasKey(session => session.Id);
+
+            entity.Property(session => session.Id)
+                .ValueGeneratedNever();
+
+            entity.Property(session => session.Title)
+                .HasMaxLength(160)
+                .IsRequired();
+
+            entity.Property(session => session.CreatedAtUtc)
+                .HasConversion(DateTimeOffsetToUnixMilliseconds);
+
+            entity.Property(session => session.UpdatedAtUtc)
+                .HasConversion(DateTimeOffsetToUnixMilliseconds);
+
+            entity.HasMany(session => session.CommandLogs)
+                .WithOne()
+                .HasForeignKey(command => command.ChatSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(session => session.UpdatedAtUtc);
+        });
+
         modelBuilder.Entity<CommandLogEntry>(entity =>
         {
             entity.ToTable("command_logs");
@@ -27,6 +60,9 @@ public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> 
 
             entity.Property(command => command.Id)
                 .ValueGeneratedNever();
+
+            entity.Property(command => command.ChatSessionId)
+                .IsRequired();
 
             entity.Property(command => command.UserText)
                 .HasMaxLength(4000)
@@ -68,6 +104,8 @@ public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> 
                 .HasConversion(NullableDateTimeOffsetToUnixMilliseconds);
 
             entity.HasIndex(command => command.CreatedAtUtc);
+
+            entity.HasIndex(command => command.ChatSessionId);
         });
     }
 }

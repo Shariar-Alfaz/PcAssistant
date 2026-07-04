@@ -11,8 +11,7 @@ window.pcAssistantDirectoryPicker = {
                 return;
             }
 
-            const value = input.value.toLowerCase();
-            if (!value.includes("@dir:") && !value.includes("@folder:")) {
+            if (!input.value.includes("@")) {
                 return;
             }
 
@@ -20,9 +19,25 @@ window.pcAssistantDirectoryPicker = {
             event.stopPropagation();
 
             const handled = await dotNetRef.invokeMethodAsync("HandleDirectoryPickerKeyAsync", event.key);
-            if (!handled && event.key === "Tab") {
+            if (handled) {
+                return;
+            }
+
+            if (event.key === "Tab") {
                 input.blur();
             }
+        });
+    },
+    focus(inputId) {
+        requestAnimationFrame(() => {
+            const input = document.getElementById(inputId);
+            if (!input) {
+                return;
+            }
+
+            input.focus({ preventScroll: true });
+            const length = input.value.length;
+            input.setSelectionRange(length, length);
         });
     }
 };

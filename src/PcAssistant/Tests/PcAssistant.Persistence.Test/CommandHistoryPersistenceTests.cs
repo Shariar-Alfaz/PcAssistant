@@ -41,7 +41,9 @@ public sealed class CommandHistoryPersistenceTests
     public async Task ListRecentAsync_orders_command_history_with_sqlite_timestamp_conversion()
     {
         var history = _container.Resolve<ICommandHistoryService>();
+        var chat = await history.CreateChatAsync();
         var first = await history.RecordPredictionAsync(
+            chat.Id,
             "open settings",
             CreateResponse("unknown", 0.89),
             CreateParsedCommand("open settings", "unknown"),
@@ -50,6 +52,7 @@ public sealed class CommandHistoryPersistenceTests
             lowConfidenceRequiresConfirmation: false);
         await Task.Delay(10);
         var second = await history.RecordPredictionAsync(
+            chat.Id,
             "restart pc",
             CreateResponse("system.restart", 0.95),
             CreateParsedCommand("restart pc", "system.restart"),
@@ -60,6 +63,38 @@ public sealed class CommandHistoryPersistenceTests
         var recent = await history.ListRecentAsync(50);
 
         recent.Select(item => item.Id).ShouldBe(new[] { first.Id, second.Id });
+    }
+
+    [Test]
+    public async Task Chat_sessions_can_be_loaded_and_deleted_with_their_messages()
+    {
+        var history = _container.Resolve<ICommandHistoryService>();
+        var firstChat = await history.CreateChatAsync();
+        var secondChat = await history.CreateChatAsync();
+
+        await history.RecordPredictionAsync(
+            firstChat.Id,
+            "create reports folder",
+            CreateResponse("filesystem.create_folder", 0.93),
+            CreateParsedCommand("create reports folder", "filesystem.create_folder"),
+            "filesystem.create_folder",
+            "Create folder Reports.",
+            lowConfidenceRequiresConfirmation: false);
+
+        var loaded = await history.GetChatAsync(firstChat.Id);
+        loaded.Summary.Title.ShouldBe("create reports folder");
+        loaded.Messages.Count.ShouldBe(1);
+        loaded.Messages[0].ChatSessionId.ShouldBe(firstChat.Id);
+
+        var chats = await history.ListChatsAsync();
+        chats.Select(chat => chat.Id).ShouldContain(firstChat.Id);
+        chats.Select(chat => chat.Id).ShouldContain(secondChat.Id);
+
+        await history.DeleteChatAsync(firstChat.Id);
+
+        var remainingChats = await history.ListChatsAsync();
+        remainingChats.Select(chat => chat.Id).ShouldNotContain(firstChat.Id);
+        remainingChats.Select(chat => chat.Id).ShouldContain(secondChat.Id);
     }
 
     private static CommandResponse CreateResponse(string label, double confidence)

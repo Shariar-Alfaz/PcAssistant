@@ -8,4 +8,10 @@ public interface IDirectorySuggestionService
         string? query,
         int count,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DirectorySuggestion>> SuggestChildrenAsync(
+        string directoryPath,
+        string? query,
+        int count,
+        CancellationToken cancellationToken = default);
 }

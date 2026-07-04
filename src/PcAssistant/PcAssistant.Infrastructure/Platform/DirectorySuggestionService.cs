@@ -24,6 +24,45 @@ public sealed class DirectorySuggestionService : IDirectorySuggestionService
         return Task.FromResult<IReadOnlyList<DirectorySuggestion>>(result);
     }
 
+    public Task<IReadOnlyList<DirectorySuggestion>> SuggestChildrenAsync(
+        string directoryPath,
+        string? query,
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        var trimmedPath = directoryPath.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedPath) || !Directory.Exists(trimmedPath))
+        {
+            return Task.FromResult<IReadOnlyList<DirectorySuggestion>>(Array.Empty<DirectorySuggestion>());
+        }
+
+        var trimmedQuery = query?.Trim() ?? string.Empty;
+        var searchRoot = trimmedPath;
+        var namePrefix = trimmedQuery;
+        if (!string.IsNullOrWhiteSpace(trimmedQuery))
+        {
+            var combinedQuery = Path.Combine(trimmedPath, trimmedQuery);
+            var queryParent = GetSearchParent(combinedQuery);
+            if (IsSameOrChildPath(trimmedPath, queryParent))
+            {
+                searchRoot = queryParent;
+                namePrefix = GetNamePrefix(combinedQuery);
+            }
+        }
+
+        var suggestions = SafeEnumerateDirectories(searchRoot)
+            .Where(path => MatchesName(path, namePrefix))
+            .Select(path => ToSuggestion(path, "folder"))
+            .Concat(SafeEnumerateFiles(searchRoot)
+                .Where(path => MatchesName(path, namePrefix))
+                .Select(path => ToSuggestion(path, "file")))
+            .DistinctBy(suggestion => suggestion.Path, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Max(1, count))
+            .ToArray();
+
+        return Task.FromResult<IReadOnlyList<DirectorySuggestion>>(suggestions);
+    }
+
     private static IEnumerable<DirectorySuggestion> GetDefaultDirectories()
     {
         foreach (var drive in GetDrives())
@@ -183,6 +222,49 @@ public sealed class DirectorySuggestionService : IDirectorySuggestionService
         catch (Exception ex) when (ex is UnauthorizedAccessException or DirectoryNotFoundException or IOException or ArgumentException)
         {
             return Array.Empty<string>();
+        }
+    }
+
+    private static IEnumerable<string> SafeEnumerateFiles(string path)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(path).Order(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or DirectoryNotFoundException or IOException or ArgumentException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static bool MatchesName(string path, string namePrefix)
+    {
+        if (string.IsNullOrWhiteSpace(namePrefix))
+        {
+            return true;
+        }
+
+        var name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return name.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase)
+            || name.Contains(namePrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSameOrChildPath(string parentPath, string candidatePath)
+    {
+        try
+        {
+            var parent = Path.GetFullPath(parentPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var candidate = Path.GetFullPath(candidatePath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            return candidate.Equals(parent, StringComparison.OrdinalIgnoreCase)
+                || candidate.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || candidate.StartsWith(parent + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
         }
     }
 

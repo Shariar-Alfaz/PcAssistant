@@ -4,7 +4,7 @@ using PcAssistant.Domain;
 
 namespace PcAssistant.Persistence.Repositories;
 
-internal sealed class EfCommandLogRepository(PcAssistantDbContext dbContext) : ICommandLogRepository
+internal sealed class EfCommandLogRepository(IPcAssistantDbContext dbContext) : ICommandLogRepository
 {
     public async Task AddAsync(CommandLogEntry entry, CancellationToken cancellationToken = default)
     {
@@ -25,5 +25,21 @@ internal sealed class EfCommandLogRepository(PcAssistantDbContext dbContext) : I
             .Take(take)
             .OrderBy(entry => entry.CreatedAtUtc)
             .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CommandLogEntry>> ListByChatSessionAsync(
+        Guid chatSessionId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.CommandLogs
+            .AsNoTracking()
+            .Where(entry => entry.ChatSessionId == chatSessionId)
+            .OrderBy(entry => entry.CreatedAtUtc)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public Task<bool> ExistsInChatSessionAsync(Guid chatSessionId, CancellationToken cancellationToken = default)
+    {
+        return dbContext.CommandLogs.AnyAsync(entry => entry.ChatSessionId == chatSessionId, cancellationToken);
     }
 }

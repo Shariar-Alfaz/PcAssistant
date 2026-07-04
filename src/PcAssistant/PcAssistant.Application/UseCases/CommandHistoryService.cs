@@ -6,6 +6,61 @@ namespace PcAssistant.Application.UseCases;
 
 public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitOfWorkFactory) : ICommandHistoryService
 {
+    public async Task<IReadOnlyList<ChatSessionSummary>> ListChatsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Create();
+        var sessions = await unitOfWork.ChatSessions.ListAsync(cancellationToken);
+        return sessions.Select(ToChatSummary).ToArray();
+    }
+
+    public async Task<ChatSessionDetails> GetChatAsync(
+        Guid chatSessionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Create();
+        var session = await GetRequiredSessionAsync(unitOfWork, chatSessionId, cancellationToken);
+        var entries = await unitOfWork.CommandLogs.ListByChatSessionAsync(chatSessionId, cancellationToken);
+        return new ChatSessionDetails(
+            ToChatSummary(session),
+            entries.Select(ToHistoryItem).ToArray());
+    }
+
+    public async Task<ChatSessionSummary> CreateChatAsync(CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Create();
+        var session = ChatSession.Create(ChatSession.DefaultTitle, DateTimeOffset.UtcNow);
+
+        try
+        {
+            await unitOfWork.ChatSessions.AddAsync(session, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+            return ToChatSummary(session);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task DeleteChatAsync(Guid chatSessionId, CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Create();
+        var session = await GetRequiredSessionAsync(unitOfWork, chatSessionId, cancellationToken);
+
+        try
+        {
+            unitOfWork.ChatSessions.Remove(session);
+            await unitOfWork.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     public async Task<IReadOnlyList<CommandHistoryItem>> ListRecentAsync(
         int count,
         CancellationToken cancellationToken = default)
@@ -16,6 +71,7 @@ public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitO
     }
 
     public async Task<CommandHistoryItem> RecordPredictionAsync(
+        Guid chatSessionId,
         string userText,
         CommandResponse response,
         ParsedCommand parsedCommand,
@@ -25,7 +81,12 @@ public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitO
         CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Create();
+        var session = await GetRequiredSessionAsync(unitOfWork, chatSessionId, cancellationToken);
+        session.RenameFromFirstMessage(userText);
+        session.Touch(DateTimeOffset.UtcNow);
+
         var entry = CommandLogEntry.CreatePrediction(
+            chatSessionId,
             userText,
             effectiveLabel,
             response.RawPredictedLabel,
@@ -124,10 +185,20 @@ public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitO
         return entry ?? throw new InvalidOperationException("Command log entry was not found.");
     }
 
+    private static async Task<ChatSession> GetRequiredSessionAsync(
+        ICommandHistoryUnitOfWork unitOfWork,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var session = await unitOfWork.ChatSessions.GetByIdAsync(id, cancellationToken);
+        return session ?? throw new InvalidOperationException("Chat session was not found.");
+    }
+
     private static CommandHistoryItem ToHistoryItem(CommandLogEntry entry)
     {
         return new CommandHistoryItem(
             entry.Id,
+            entry.ChatSessionId,
             entry.UserText,
             entry.CommandLabel,
             entry.RawPredictedLabel,
@@ -142,5 +213,15 @@ public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitO
             entry.ExecutionMessage,
             entry.CreatedAtUtc,
             entry.ExecutedAtUtc);
+    }
+
+    private static ChatSessionSummary ToChatSummary(ChatSession session)
+    {
+        return new ChatSessionSummary(
+            session.Id,
+            session.Title,
+            session.CreatedAtUtc,
+            session.UpdatedAtUtc,
+            session.CommandLogs.Count);
     }
 }

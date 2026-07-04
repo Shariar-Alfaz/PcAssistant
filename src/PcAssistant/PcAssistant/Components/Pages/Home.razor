@@ -2,87 +2,25 @@
 
 <PageTitle>PcAssistant</PageTitle>
 
-<section class="space-y-6">
-    <div class="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.65fr)]">
-        <section class="overflow-hidden rounded-[2rem] border border-white/80 bg-white/[0.78] p-6 shadow-xl shadow-slate-900/[0.08] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08] dark:shadow-black/20 sm:p-8">
-            <div class="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.32em] text-teal-700 dark:text-cyan-300">PC command workspace</p>
-                    <h1 class="mt-4 max-w-3xl text-4xl font-black leading-tight text-slate-950 dark:text-white sm:text-5xl">A calmer control center for Windows automation.</h1>
-                    <p class="mt-4 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-                        Type what you want done, review the interpretation, and run approved local actions with safety checks in the loop.
-                    </p>
-                </div>
-                <a href="assistant" class="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200">
-                    Open assistant
-                </a>
-            </div>
-
-            <div class="mt-8 grid gap-3 sm:grid-cols-3">
-                <div class="rounded-2xl border border-teal-200/70 bg-teal-50 p-4 dark:border-cyan-400/20 dark:bg-cyan-400/10">
-                    <p class="text-2xl font-black text-teal-950 dark:text-cyan-100">AI</p>
-                    <p class="mt-1 text-sm font-medium text-teal-700 dark:text-cyan-200/80">Predicts command intent from natural language.</p>
-                </div>
-                <div class="rounded-2xl border border-amber-200/80 bg-amber-50 p-4 dark:border-amber-400/20 dark:bg-amber-400/10">
-                    <p class="text-2xl font-black text-amber-950 dark:text-amber-100">Safe</p>
-                    <p class="mt-1 text-sm font-medium text-amber-700 dark:text-amber-200/80">Requires confirmation for sensitive actions.</p>
-                </div>
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.08]">
-                    <p class="text-2xl font-black text-slate-950 dark:text-white">Local</p>
-                    <p class="mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">Keeps device execution behind client services.</p>
-                </div>
-            </div>
-        </section>
-
-        <aside class="rounded-[2rem] border border-slate-200/80 bg-slate-950 p-6 text-white shadow-xl shadow-slate-950/15 dark:border-white/10 dark:bg-white/[0.08]">
-            <div class="flex items-center justify-between">
-                <p class="text-sm font-bold text-white">System readiness</p>
-                <span class="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-200">Online</span>
-            </div>
-            <div class="mt-6 space-y-4">
-                <div>
-                    <div class="flex justify-between text-xs font-semibold text-slate-300">
-                        <span>Command parser</span>
-                        <span>Ready</span>
-                    </div>
-                    <div class="mt-2 h-2 rounded-full bg-white/10">
-                        <div class="h-2 w-[88%] rounded-full bg-teal-300"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs font-semibold text-slate-300">
-                        <span>Safety validator</span>
-                        <span>Guarded</span>
-                    </div>
-                    <div class="mt-2 h-2 rounded-full bg-white/10">
-                        <div class="h-2 w-[94%] rounded-full bg-amber-300"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-xs font-semibold text-slate-300">
-                        <span>Windows executor</span>
-                        <span>Local</span>
-                    </div>
-                    <div class="mt-2 h-2 rounded-full bg-white/10">
-                        <div class="h-2 w-[76%] rounded-full bg-sky-300"></div>
-                    </div>
-                </div>
-            </div>
-        </aside>
+<section class="flex min-h-[calc(100vh-7rem)] items-center justify-center">
+    <div class="w-full max-w-3xl px-2 text-center">
+        <div class="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[#0f6cbd] text-base font-semibold text-white shadow-sm">PA</div>
+        <h1 class="mt-6 text-3xl font-semibold tracking-normal text-slate-950 dark:text-white sm:text-4xl">What can I help you do on this PC?</h1>
+        <p class="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-neutral-300">
+            Ask for a local action, review the detected command, then confirm anything sensitive before it runs.
+        </p>
+        <a href="assistant" class="mx-auto mt-8 flex min-h-14 max-w-2xl items-center justify-between rounded-[1.5rem] border border-slate-200 bg-white px-5 text-left text-sm text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-[#2b2b2b] dark:text-neutral-300 dark:hover:bg-[#303030]">
+            <span>Message PcAssistant</span>
+            <span class="flex size-9 items-center justify-center rounded-full bg-[#0f6cbd] text-white" aria-hidden="true">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 12h12m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </span>
+        </a>
+        <div class="mt-5 flex flex-wrap justify-center gap-2">
+            <span class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-neutral-300">Create folders</span>
+            <span class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-neutral-300">Review confidence</span>
+            <span class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-neutral-300">Confirm execution</span>
+        </div>
     </div>
-
-    <section class="grid gap-4 md:grid-cols-3">
-        <article class="rounded-2xl border border-white/80 bg-white/[0.78] p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08]">
-            <p class="text-sm font-bold text-slate-950 dark:text-white">Ask naturally</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Use phrases like create a folder in downloads or schedule a restart.</p>
-        </article>
-        <article class="rounded-2xl border border-white/80 bg-white/[0.78] p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08]">
-            <p class="text-sm font-bold text-slate-950 dark:text-white">Review the plan</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">The assistant shows the detected label, confidence, source, and resolved path.</p>
-        </article>
-        <article class="rounded-2xl border border-white/80 bg-white/[0.78] p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08]">
-            <p class="text-sm font-bold text-slate-950 dark:text-white">Confirm execution</p>
-            <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Potentially sensitive commands stay blocked or require confirmation before running.</p>
-        </article>
-    </section>
 </section>

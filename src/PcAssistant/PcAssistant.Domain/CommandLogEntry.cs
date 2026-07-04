@@ -8,6 +8,7 @@ public sealed class CommandLogEntry
 
     private CommandLogEntry(
         Guid id,
+        Guid chatSessionId,
         string userText,
         string commandLabel,
         string rawPredictedLabel,
@@ -21,6 +22,7 @@ public sealed class CommandLogEntry
         DateTimeOffset createdAtUtc)
     {
         Id = id;
+        ChatSessionId = chatSessionId;
         UserText = userText;
         CommandLabel = commandLabel;
         RawPredictedLabel = rawPredictedLabel;
@@ -35,6 +37,8 @@ public sealed class CommandLogEntry
     }
 
     public Guid Id { get; private set; }
+
+    public Guid ChatSessionId { get; private set; }
 
     public string UserText { get; private set; } = string.Empty;
 
@@ -65,6 +69,7 @@ public sealed class CommandLogEntry
     public DateTimeOffset? ExecutedAtUtc { get; private set; }
 
     public static CommandLogEntry CreatePrediction(
+        Guid chatSessionId,
         string userText,
         string commandLabel,
         string rawPredictedLabel,
@@ -77,6 +82,11 @@ public sealed class CommandLogEntry
         bool isDangerous,
         DateTimeOffset createdAtUtc)
     {
+        if (chatSessionId == Guid.Empty)
+        {
+            throw new ArgumentException("Chat session is required.", nameof(chatSessionId));
+        }
+
         if (string.IsNullOrWhiteSpace(userText))
         {
             throw new ArgumentException("Command text is required.", nameof(userText));
@@ -84,6 +94,7 @@ public sealed class CommandLogEntry
 
         return new CommandLogEntry(
             Guid.NewGuid(),
+            chatSessionId,
             userText.Trim(),
             NormalizeLabel(commandLabel),
             NormalizeLabel(rawPredictedLabel),

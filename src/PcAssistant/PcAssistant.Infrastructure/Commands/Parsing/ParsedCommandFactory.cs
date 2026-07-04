@@ -43,4 +43,36 @@ internal static class ParsedCommandFactory
                 : validation.Message ?? "This folder action was blocked.",
         };
     }
+
+    public static ParsedCommand FileSystemPath(
+        string commandLabel,
+        string text,
+        string pathText,
+        string? locationAlias,
+        string locationType,
+        string previewAction,
+        string invalidPathMessage)
+    {
+        try
+        {
+            var resolvedPath = Path.GetFullPath(Environment.ExpandEnvironmentVariables(pathText));
+            return new ParsedCommand
+            {
+                CommandLabel = commandLabel,
+                OriginalText = text,
+                FolderName = Path.GetFileName(resolvedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                LocationAlias = locationAlias,
+                LocationType = locationType,
+                PathText = pathText,
+                ResolvedPath = resolvedPath,
+                RequiresConfirmation = false,
+                IsDangerous = false,
+                Preview = $"{previewAction}: {resolvedPath}",
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return Unknown(text, invalidPathMessage);
+        }
+    }
 }

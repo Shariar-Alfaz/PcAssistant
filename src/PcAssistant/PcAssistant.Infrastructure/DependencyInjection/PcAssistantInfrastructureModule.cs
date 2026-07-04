@@ -39,12 +39,17 @@ public sealed class PcAssistantInfrastructureModule : Module
             .As<IDirectorySuggestionService>()
             .SingleInstance();
 
+        builder.RegisterType<LocationPickerService>()
+            .As<ILocationPickerService>()
+            .SingleInstance();
+
         builder.RegisterType<ExplicitPathExtractor>().SingleInstance();
         builder.RegisterType<LocationAliasResolver>().SingleInstance();
         builder.RegisterType<FolderNameExtractor>().SingleInstance();
 
         builder.RegisterType<EmptyCommandParserHandler>().As<ICommandParserHandler>().SingleInstance();
         builder.RegisterType<FolderCommandParserHandler>().As<ICommandParserHandler>().SingleInstance();
+        builder.RegisterType<FileSystemPathCommandParserHandler>().As<ICommandParserHandler>().SingleInstance();
         builder.RegisterType<RestartCommandParserHandler>().As<ICommandParserHandler>().SingleInstance();
         builder.RegisterType<CancelRestartCommandParserHandler>().As<ICommandParserHandler>().SingleInstance();
         builder.RegisterType<UnknownCommandParserHandler>().As<ICommandParserHandler>().SingleInstance();

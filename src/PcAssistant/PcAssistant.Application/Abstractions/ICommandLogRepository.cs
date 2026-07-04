@@ -9,4 +9,8 @@ public interface ICommandLogRepository
     Task<CommandLogEntry?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<CommandLogEntry>> ListRecentAsync(int count, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CommandLogEntry>> ListByChatSessionAsync(Guid chatSessionId, CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsInChatSessionAsync(Guid chatSessionId, CancellationToken cancellationToken = default);
 }

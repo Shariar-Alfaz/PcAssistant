@@ -4,9 +4,18 @@ namespace PcAssistant.Application.Abstractions;
 
 public interface ICommandHistoryService
 {
+    Task<IReadOnlyList<ChatSessionSummary>> ListChatsAsync(CancellationToken cancellationToken = default);
+
+    Task<ChatSessionDetails> GetChatAsync(Guid chatSessionId, CancellationToken cancellationToken = default);
+
+    Task<ChatSessionSummary> CreateChatAsync(CancellationToken cancellationToken = default);
+
+    Task DeleteChatAsync(Guid chatSessionId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<CommandHistoryItem>> ListRecentAsync(int count, CancellationToken cancellationToken = default);
 
     Task<CommandHistoryItem> RecordPredictionAsync(
+        Guid chatSessionId,
         string userText,
         CommandResponse response,
         ParsedCommand parsedCommand,

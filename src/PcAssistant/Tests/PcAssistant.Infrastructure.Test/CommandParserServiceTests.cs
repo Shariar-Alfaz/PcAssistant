@@ -169,6 +169,29 @@ public sealed class CommandParserServiceTests
     }
 
     [Test]
+    public void Folder_handler_combines_named_folder_with_drive_root_path()
+    {
+        var safety = _mock.Mock<ICommandSafetyValidator>();
+        safety.Setup(validator => validator.ValidateFileSystemTarget(It.IsAny<string>()))
+            .Returns((string? path) => SafetyValidationResult.Allowed(Path.GetFullPath(path!)));
+
+        var handler = _mock.Create<FolderCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.create_folder",
+            @"create me a folder called Chat on D:\",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.create_folder");
+        parsed.FolderName.ShouldBe("Chat");
+        parsed.LocationAlias.ShouldBe("explicit path");
+        parsed.LocationType.ShouldBe("absolute");
+        parsed.ResolvedPath.ShouldBe(@"D:\Chat");
+    }
+
+    [Test]
     public void Folder_handler_supports_singular_download_alias()
     {
         var safety = _mock.Mock<ICommandSafetyValidator>();
@@ -232,6 +255,65 @@ public sealed class CommandParserServiceTests
         parsed.IsDangerous.ShouldBeTrue();
         parsed.ErrorMessage.ShouldBe("This path is protected.");
         parsed.Preview.ShouldBe("This path is protected.");
+    }
+
+    [Test]
+    public void File_system_path_handler_parses_open_folder_from_known_location()
+    {
+        var handler = _mock.Create<FileSystemPathCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.open_folder",
+            "open downloads folder",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.open_folder");
+        parsed.LocationAlias.ShouldBe("downloads");
+        parsed.LocationType.ShouldBe("known-folder");
+        parsed.RequiresConfirmation.ShouldBeFalse();
+        parsed.ResolvedPath.ShouldNotBeNull();
+        parsed.ResolvedPath!.ShouldContain("Downloads");
+        parsed.Preview.ShouldStartWith("Open folder:");
+    }
+
+    [Test]
+    public void File_system_path_handler_parses_file_details_in_known_location()
+    {
+        var handler = _mock.Create<FileSystemPathCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.get_file_details",
+            "give file details for report.pdf in downloads",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.get_file_details");
+        parsed.LocationAlias.ShouldBe("downloads");
+        parsed.ResolvedPath.ShouldNotBeNull();
+        parsed.ResolvedPath!.ShouldContain("Downloads");
+        parsed.ResolvedPath.ShouldEndWith($"{Path.DirectorySeparatorChar}report.pdf");
+        parsed.Preview.ShouldStartWith("Get file details:");
+    }
+
+    [Test]
+    public void File_system_path_handler_parses_file_details_from_explicit_path()
+    {
+        var handler = _mock.Create<FileSystemPathCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.get_file_details",
+            @"show metadata for C:\Temp\Quarterly Report.xlsx",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.get_file_details");
+        parsed.LocationAlias.ShouldBe("explicit path");
+        parsed.LocationType.ShouldBe("absolute");
+        parsed.ResolvedPath.ShouldBe(@"C:\Temp\Quarterly Report.xlsx");
     }
 
     [Test]
