@@ -1,9 +1,11 @@
 using Autofac.Extras.Moq;
 using Moq;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Repositories;
+using PcAssistant.Application.Abstractions.Services;
+using PcAssistant.Application.Abstractions.UnitOfWorks;
 using PcAssistant.Application.Models;
 using PcAssistant.Application.UseCases;
-using PcAssistant.Domain;
+using PcAssistant.Domain.Entity;
 using Shouldly;
 
 namespace PcAssistant.Application.Test;

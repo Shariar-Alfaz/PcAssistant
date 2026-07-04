@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using PcAssistant.Application.Abstractions;
-using PcAssistant.Domain;
+using PcAssistant.Application.Abstractions.Services;
+using PcAssistant.Domain.Entity;
+using PcAssistant.Persistence.Database;
 
 namespace PcAssistant.Persistence.Repositories;
 
@@ -14,7 +15,6 @@ internal sealed class EfChatSessionRepository(IPcAssistantDbContext dbContext) :
     public Task<ChatSession?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return dbContext.ChatSessions
-            .Include(session => session.CommandLogs)
             .FirstOrDefaultAsync(session => session.Id == id, cancellationToken);
     }
 
@@ -22,7 +22,6 @@ internal sealed class EfChatSessionRepository(IPcAssistantDbContext dbContext) :
     {
         return await dbContext.ChatSessions
             .AsNoTracking()
-            .Include(session => session.CommandLogs)
             .OrderByDescending(session => session.UpdatedAtUtc)
             .ToArrayAsync(cancellationToken);
     }

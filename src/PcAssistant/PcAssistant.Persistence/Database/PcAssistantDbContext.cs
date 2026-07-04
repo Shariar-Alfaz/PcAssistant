@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using PcAssistant.Domain;
+using PcAssistant.Domain.Entity;
 
-namespace PcAssistant.Persistence;
+namespace PcAssistant.Persistence.Database;
 
 public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> options) : DbContext(options), IPcAssistantDbContext
 {
@@ -19,6 +19,8 @@ public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> 
     public DbSet<CommandLogEntry> CommandLogs => Set<CommandLogEntry>();
 
     public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+
+    public DbSet<ScheduledTask> ScheduledTasks => Set<ScheduledTask>();
 
     public void ClearTrackedChanges()
     {
@@ -106,6 +108,43 @@ public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> 
             entity.HasIndex(command => command.CreatedAtUtc);
 
             entity.HasIndex(command => command.ChatSessionId);
+        });
+
+        modelBuilder.Entity<ScheduledTask>(entity =>
+        {
+            entity.ToTable("scheduled_tasks");
+            entity.HasKey(task => task.Id);
+
+            entity.Property(task => task.Id)
+                .ValueGeneratedNever();
+
+            entity.Property(task => task.TaskType)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            entity.Property(task => task.DisplayName)
+                .HasMaxLength(160)
+                .IsRequired();
+
+            entity.Property(task => task.QueueStatus)
+                .HasMaxLength(32)
+                .IsRequired();
+
+            entity.Property(task => task.ScheduledForUtc)
+                .HasConversion(DateTimeOffsetToUnixMilliseconds);
+
+            entity.Property(task => task.CreatedAtUtc)
+                .HasConversion(DateTimeOffsetToUnixMilliseconds);
+
+            entity.Property(task => task.CompletedAtUtc)
+                .HasConversion(NullableDateTimeOffsetToUnixMilliseconds);
+
+            entity.Property(task => task.LastMessage)
+                .HasMaxLength(4000);
+
+            entity.HasIndex(task => new { task.QueueStatus, task.ScheduledForUtc });
+
+            entity.HasIndex(task => task.CommandLogId);
         });
     }
 }

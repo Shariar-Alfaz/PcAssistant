@@ -1,8 +1,8 @@
 using Autofac;
 using Microsoft.Data.Sqlite;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
-using PcAssistant.Persistence;
+using PcAssistant.Persistence.Database;
 using PcAssistant.Persistence.DependencyInjection;
 using Shouldly;
 
@@ -95,6 +95,42 @@ public sealed class CommandHistoryPersistenceTests
         var remainingChats = await history.ListChatsAsync();
         remainingChats.Select(chat => chat.Id).ShouldNotContain(firstChat.Id);
         remainingChats.Select(chat => chat.Id).ShouldContain(secondChat.Id);
+    }
+
+    [Test]
+    public async Task GetChatAsync_paginates_messages_from_newest_to_older_pages()
+    {
+        var history = _container.Resolve<ICommandHistoryService>();
+        var chat = await history.CreateChatAsync();
+
+        var messages = new List<CommandHistoryItem>();
+        for (var index = 1; index <= 5; index++)
+        {
+            messages.Add(await history.RecordPredictionAsync(
+                chat.Id,
+                $"message {index}",
+                CreateResponse("unknown", 0.89),
+                CreateParsedCommand($"message {index}", "unknown"),
+                "unknown",
+                "I could not understand this as a PC command. Please rephrase it.",
+                lowConfidenceRequiresConfirmation: false));
+            await Task.Delay(5);
+        }
+
+        var newestPage = await history.GetChatAsync(chat.Id, messageCount: 2);
+
+        newestPage.Messages.Select(message => message.UserText).ShouldBe(["message 4", "message 5"]);
+        newestPage.HasOlderMessages.ShouldBeTrue();
+        newestPage.OlderThanUtc?.ToUnixTimeMilliseconds().ShouldBe(messages[3].CreatedAtUtc.ToUnixTimeMilliseconds());
+
+        var olderPage = await history.GetChatAsync(
+            chat.Id,
+            messageCount: 2,
+            beforeCreatedAtUtc: newestPage.OlderThanUtc);
+
+        olderPage.Messages.Select(message => message.UserText).ShouldBe(["message 2", "message 3"]);
+        olderPage.HasOlderMessages.ShouldBeTrue();
+        olderPage.OlderThanUtc?.ToUnixTimeMilliseconds().ShouldBe(messages[1].CreatedAtUtc.ToUnixTimeMilliseconds());
     }
 
     private static CommandResponse CreateResponse(string label, double confidence)

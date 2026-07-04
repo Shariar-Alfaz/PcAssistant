@@ -41,3 +41,40 @@ window.pcAssistantDirectoryPicker = {
         });
     }
 };
+
+window.pcAssistantMessageList = {
+    scrollToBottom(element) {
+        if (!element) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            element.scrollTop = element.scrollHeight;
+        });
+    },
+    getMetrics(element) {
+        if (!element) {
+            return {
+                scrollTop: 0,
+                scrollHeight: 0,
+                clientHeight: 0
+            };
+        }
+
+        return {
+            scrollTop: element.scrollTop,
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight
+        };
+    },
+    restoreAfterPrepend(element, previousScrollHeight) {
+        if (!element) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            const nextScrollTop = element.scrollHeight - previousScrollHeight;
+            element.scrollTop = Math.max(0, nextScrollTop);
+        });
+    }
+};

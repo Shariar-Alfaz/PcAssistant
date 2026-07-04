@@ -1,4 +1,4 @@
-namespace PcAssistant.Domain;
+namespace PcAssistant.Domain.Entity;
 
 public sealed class CommandLogEntry
 {

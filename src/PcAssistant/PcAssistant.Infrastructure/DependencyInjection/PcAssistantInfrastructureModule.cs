@@ -1,5 +1,5 @@
 using Autofac;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Infrastructure.Api;
 using PcAssistant.Infrastructure.Commands;
 using PcAssistant.Infrastructure.Commands.Handlers;
@@ -13,10 +13,10 @@ public sealed class PcAssistantInfrastructureModule : Module
     protected override void Load(ContainerBuilder builder)
     {
         builder.Register(_ => new HttpClient
-            {
-                BaseAddress = new Uri("http://127.0.0.1:8000/"),
-                Timeout = TimeSpan.FromSeconds(20),
-            })
+        {
+            BaseAddress = new Uri("http://127.0.0.1:8000/"),
+            Timeout = TimeSpan.FromSeconds(20),
+        })
             .SingleInstance();
 
         builder.RegisterType<CommandAiClient>()

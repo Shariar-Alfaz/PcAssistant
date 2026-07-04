@@ -3,7 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using PcAssistant.Persistence;
+using PcAssistant.Persistence.Database;
 
 #nullable disable
 
@@ -112,6 +112,60 @@ namespace PcAssistant.Persistence.Migrations
                     b.HasIndex("CreatedAtUtc");
 
                     b.ToTable("command_logs", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.ScheduledTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ChatSessionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CommandLogId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("CompletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QueuePosition")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("QueueStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ScheduledForUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TaskType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommandLogId");
+
+                    b.HasIndex("QueueStatus", "ScheduledForUtc");
+
+                    b.ToTable("scheduled_tasks", (string)null);
                 });
 
             modelBuilder.Entity("PcAssistant.Domain.CommandLogEntry", b =>

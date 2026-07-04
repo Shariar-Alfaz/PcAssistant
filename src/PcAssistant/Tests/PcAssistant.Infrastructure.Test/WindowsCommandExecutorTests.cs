@@ -48,11 +48,17 @@ public sealed class WindowsCommandExecutorTests
         result.Succeeded.ShouldBeTrue();
         result.Message.ShouldContain($"File details: {path}");
         result.Message.ShouldContain("Name: report.txt");
+        result.Message.ShouldContain("Base name: report");
         result.Message.ShouldContain("Extension: .txt");
         result.Message.ShouldContain("Size: 5 B");
+        result.Message.ShouldContain("Owner:");
         result.Message.ShouldContain("Created:");
         result.Message.ShouldContain("Modified:");
         result.Message.ShouldContain("Accessed:");
+        result.Message.ShouldContain("Read-only:");
+        result.Message.ShouldContain("Hidden:");
+        result.Message.ShouldContain("System file:");
+        result.Message.ShouldContain("Archive:");
         result.Message.ShouldContain("Attributes:");
     }
 

@@ -1,7 +1,7 @@
 using Autofac;
 using Autofac.Extras.Moq;
 using Moq;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
 using PcAssistant.Infrastructure.Commands;
 using PcAssistant.Infrastructure.Commands.Handlers;
@@ -112,7 +112,7 @@ public sealed class CommandParserServiceTests
 
         parsed.CommandLabel.ShouldBe("system.restart");
         parsed.RequiresConfirmation.ShouldBeTrue();
-        parsed.Preview.ShouldBe("Restart this PC after a short delay.");
+        parsed.Preview.ShouldBe("Restart this PC after 30 seconds.");
     }
 
     [Test]
@@ -327,6 +327,19 @@ public sealed class CommandParserServiceTests
         parsed.ShouldNotBeNull();
         parsed.CommandLabel.ShouldBe("system.restart");
         parsed.RequiresConfirmation.ShouldBeTrue();
+    }
+
+    [Test]
+    public void Restart_handler_parses_requested_delay()
+    {
+        var handler = new RestartCommandParserHandler();
+        var context = new CommandParseContext("system.restart", "restart my pc after 1 minute", RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.RestartDelay.ShouldBe(TimeSpan.FromMinutes(1));
+        parsed.Preview.ShouldBe("Restart this PC after 1 minute.");
     }
 
     [Test]

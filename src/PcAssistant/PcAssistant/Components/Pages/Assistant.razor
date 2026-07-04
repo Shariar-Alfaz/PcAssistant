@@ -1,4 +1,5 @@
 ﻿@page "/assistant"
+@page "/"
 @inject ICommandAiClient AiClient
 @inject ICommandParserService Parser
 @inject IWindowsCommandExecutor Executor
@@ -6,7 +7,9 @@
 @inject IDirectorySuggestionService DirectorySuggestions
 @inject ILocationPickerService LocationPicker
 @inject ICommandSafetyValidator SafetyValidator
+@inject IScheduledTaskService ScheduledTasks
 @inject IJSRuntime JsRuntime
+@using PcAssistant.Application.Abstractions.Services
 @implements IDisposable
 
 <PageTitle>Assistant</PageTitle>
@@ -14,7 +17,7 @@
 <section class="@ShellClass">
     <aside class="@SidebarClass">
         <div class="flex items-center justify-between px-2">
-            <a class="@SidebarBrandClass" href="">Copilot</a>
+            <a class="@SidebarBrandClass" href="">PcAssistant</a>
             <button class="flex size-8 items-center justify-center rounded-lg text-[#c9d2e3] transition hover:bg-white/10"
                     type="button"
                     title="@SidebarToggleTitle"
@@ -26,58 +29,14 @@
         </div>
 
         <nav class="mt-7 space-y-2">
-            <button class="copilot-nav-item"
+            <button class="copilot-nav-item w-full"
                     type="button"
                     @onclick="NewChatAsync">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M5 19h11.5A2.5 2.5 0 0 0 19 16.5V12m-7-7H7.5A2.5 2.5 0 0 0 5 7.5V12m7-7v6m-3-3h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 14H5.17L4 17.17V4h16v12Zm-9-2h2v-3h3V9h-3V6h-2v3H8v2h3v3Z" />
                 </svg>
                 <span class="@SidebarTextClass">New chat</span>
             </button>
-            <a class="copilot-nav-item" href="assistant">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M7 7.5A2.5 2.5 0 0 1 9.5 5H18a2 2 0 0 1 2 2v9.5A2.5 2.5 0 0 1 17.5 19H8a2 2 0 0 1-2-2V8.5A3.5 3.5 0 0 0 2.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                    <path d="M3 5h6.5A2.5 2.5 0 0 1 12 7.5V17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <span class="@SidebarTextClass">Library</span>
-            </a>
-            <span class="copilot-nav-item">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M7.5 12.5 10 15l6-6M6.5 4.5h11A2.5 2.5 0 0 1 20 7v10a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17V7a2.5 2.5 0 0 1 2.5-2.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <span class="@SidebarTextClass">Tasks</span>
-                <span class="@SidebarBadgeClass">Preview</span>
-            </span>
-            <span class="copilot-nav-item">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M3.5 8.5A2.5 2.5 0 0 1 6 6h4l2 2.5h6A2.5 2.5 0 0 1 20.5 11v5.5A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5v-8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                </svg>
-                <span class="@SidebarTextClass">Projects</span>
-                <span class="@SidebarProjectAddClass">+</span>
-            </span>
-        </nav>
-
-        <div class="my-5 h-px bg-white/18"></div>
-
-        <nav class="space-y-2">
-            <span class="copilot-nav-item">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-3.5-5.5 7-7m-5.5-.5 5.5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                </svg>
-                <span class="@SidebarTextClass">Discover</span>
-            </span>
-            <span class="copilot-nav-item">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M5 5h8v8H5V5Zm6 6 8 8m-5-8h5v5M4.5 18.5l3-4 3 4h-6Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <span class="@SidebarTextClass">Imagine</span>
-            </span>
-            <span class="copilot-nav-item">
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M5 7h4v4H5V7Zm10 0h4v4h-4V7ZM5 15h4v4H5v-4Zm10 0h4v4h-4v-4Z" stroke="currentColor" stroke-width="1.7" />
-                </svg>
-                <span class="@SidebarTextClass">Experiments</span>
-            </span>
         </nav>
 
         <div class="@SidebarFullOnlyClass">
@@ -121,33 +80,33 @@
             <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#33415f] text-sm font-semibold text-white">S</span>
             <span class="@SidebarProfileTextClass">
                 <span class="block truncate text-sm font-semibold text-white">Shariar</span>
-                <span class="block truncate text-xs text-[#a8b2c4]">Free Plan</span>
+                <span class="block truncate text-xs text-[#a8b2c4]">Local assistant</span>
             </span>
-            <button class="@SidebarUpgradeClass"
-                    type="button">
-                Upgrade
-            </button>
         </div>
     </aside>
 
     <main class="relative h-screen min-h-0 min-w-0 overflow-hidden bg-[radial-gradient(circle_at_44%_68%,rgba(210,213,207,0.75),transparent_0.15rem),radial-gradient(circle_at_39%_72%,rgba(249,250,244,0.85),transparent_0.18rem),radial-gradient(circle_at_48%_78%,rgba(236,238,232,0.75),transparent_0.12rem),linear-gradient(180deg,#00466c_0%,#06475f_22%,#7a8d91_53%,#062536_76%,#020812_100%)]">
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_35%_72%,rgba(255,255,255,0.28),transparent_0.18rem),radial-gradient(circle_at_34.5%_72.4%,rgba(244,179,69,0.8),transparent_0.09rem),radial-gradient(circle_at_79%_61%,rgba(255,255,255,0.22),transparent_0.16rem),linear-gradient(110deg,transparent_0%,rgba(0,0,0,0.18)_62%,rgba(0,0,0,0.62)_100%)]"></div>
         <div class="relative z-10 flex h-screen min-h-0 flex-col px-5 py-4 sm:px-8">
-            <div class="flex h-7 justify-end gap-4 text-[#dbe7f6]">
-                <span class="text-lg leading-none">↗</span>
-                <span class="text-lg leading-none">-</span>
-                <span class="text-lg leading-none">□</span>
-                <span class="text-lg leading-none">×</span>
-            </div>
-
-            @if (_history.Count == 0)
+            @if (_isLoadingChats)
+            {
+                <section class="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center text-center">
+                    <div class="flex size-16 items-center justify-center rounded-2xl border border-white/10 bg-[#121c31]/90 shadow-2xl shadow-black/20">
+                        <span class="size-7 animate-spin rounded-full border-2 border-[#8ec5ff]/25 border-t-[#dce9ff]"></span>
+                    </div>
+                    <h1 class="mt-5 text-2xl font-semibold tracking-normal text-white">Loading PcAssistant</h1>
+                    <p class="mt-2 text-sm leading-6 text-[#aab6c9]">Preparing command history and scheduled tasks.</p>
+                </section>
+            }
+            else if (_history.Count == 0 && !_isLoadingSelectedChat)
             {
                 <section class="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center pt-12 text-center">
                     <h1 class="text-3xl font-semibold tracking-normal text-white sm:text-4xl">Nice to see you, Shariar. What's new?</h1>
+                    @ScheduledTaskQueuePanel()
 
                     <div class="mt-9 w-full max-w-[46.5rem] rounded-[1.85rem] border border-[#263653] bg-[#121c31] p-4 text-left ring-2 shadow-[0_22px_65px_rgba(0,0,0,0.28)] ring-[#22314d]">
                         <div class="relative min-w-0">
-                            @ComposerInput("text-base", "Message Copilot")
+                            @ComposerInput("text-base", "Message PcAssistant")
                             @if (HasInlinePath(_input))
                             {
                                 <p class="mt-2 text-sm leading-6 text-[#aab6c9]">
@@ -182,70 +141,14 @@
                             }
                         </div>
 
-                        <div class="mt-3 flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <button class="flex size-9 items-center justify-center rounded-full border border-[#2f4161] text-2xl leading-none text-[#d6dfef] transition hover:bg-white/10"
-                                        type="button"
-                                        title="Add context">
-                                    +
-                                </button>
-                                <span class="rounded-full border border-[#2f4161] px-3 py-2 text-sm font-semibold text-[#d6dfef]">Smart⌄</span>
-                            </div>
-                            <div class="flex items-center gap-4 text-[#d6dfef]">
-                                <span class="text-xl">⌘</span>
-                                <span class="text-xl">≋</span>
-                                <button class="rounded-full bg-[#d6dfef] px-4 py-2 text-sm font-semibold text-[#101827] transition hover:bg-white disabled:cursor-not-allowed disabled:bg-[#41506d] disabled:text-[#aab6c9]"
-                                        type="button"
-                                        disabled="@IsSendDisabled"
-                                        @onclick="SendAsync">
-                                    @(_isBusy ? "Thinking..." : "Send")
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 flex max-w-3xl flex-wrap justify-center gap-2">
-                        @foreach (var prompt in StarterPrompts)
-                        {
-                            <button class="rounded-full border border-[#30445b] bg-[#1e344b]/85 px-4 py-2 text-sm font-semibold text-[#c4cede] shadow-md shadow-black/20 transition hover:bg-[#2c4965]"
+                        <div class="mt-3 flex justify-end">
+                            <button class="rounded-full bg-[#d6dfef] px-4 py-2 text-sm font-semibold text-[#101827] transition hover:bg-white disabled:cursor-not-allowed disabled:bg-[#41506d] disabled:text-[#aab6c9]"
                                     type="button"
-                                    @onclick="() => UseStarterPrompt(prompt)">
-                                @prompt
+                                    disabled="@IsSendDisabled"
+                                    @onclick="SendAsync">
+                                @(_isBusy ? "Thinking..." : "Send")
                             </button>
-                        }
-                    </div>
-
-                    <div class="mt-auto grid w-full max-w-4xl gap-5 pb-12 lg:grid-cols-2">
-                        <section class="rounded-[2rem] bg-[#18263a]/92 p-5 text-left shadow-2xl shadow-black/20">
-                            <p class="text-xs font-semibold text-[#aab6c9]">Attach a recent file to chat</p>
-                            <div class="mt-3 space-y-2">
-                                <div class="rounded-2xl bg-white/8 px-3 py-3 text-sm font-semibold text-[#d9e2f1]">Reports folder request</div>
-                                <div class="rounded-2xl px-3 py-3 text-sm font-semibold text-[#d9e2f1]">Restart schedule command</div>
-                                <div class="rounded-2xl px-3 py-3 text-sm font-semibold text-[#d9e2f1]">Downloads cleanup plan</div>
-                            </div>
-                        </section>
-
-                        <section class="rounded-[2rem] bg-[#18263a]/92 p-5 text-left shadow-2xl shadow-black/20">
-                            <p class="text-xs font-semibold text-[#aab6c9]">Keep talking to Copilot</p>
-                            <div class="mt-3 space-y-2">
-                                @foreach (var chat in _chats.Take(3))
-                                {
-                                    <button class="flex w-full min-w-0 items-center gap-3 rounded-2xl px-2 py-2 text-left text-[#d9e2f1] transition hover:bg-white/8"
-                                            type="button"
-                                            @onclick="() => SelectChatAsync(chat.Id)">
-                                        <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/10">
-                                            <svg class="size-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                <path d="M5 8.5A3.5 3.5 0 0 1 8.5 5h7A3.5 3.5 0 0 1 19 8.5v4A3.5 3.5 0 0 1 15.5 16H13l-4 3v-3h-.5A3.5 3.5 0 0 1 5 12.5v-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                                            </svg>
-                                        </span>
-                                        <span class="min-w-0">
-                                            <span class="block truncate text-sm font-semibold">@chat.Title</span>
-                                            <span class="block truncate text-xs text-[#aab6c9]">@FormatChatDate(chat.UpdatedAtUtc)</span>
-                                        </span>
-                                    </button>
-                                }
-                            </div>
-                        </section>
+                        </div>
                     </div>
                 </section>
             }
@@ -256,45 +159,26 @@
                         <h1 class="truncate text-xl font-semibold text-white">@ActiveChatTitle</h1>
                         <span class="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">Protected execution</span>
                     </div>
+                    @ScheduledTaskQueuePanel()
 
-                    <div class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-2">
-                        @foreach (var item in _history)
+                    <div @ref="_messageListElement"
+                         class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-2"
+                         @onscroll="OnMessageListScrollAsync">
+                        @if (_isLoadingSelectedChat)
                         {
-                            <div class="flex justify-end">
-                                <div class="user-message-bubble max-w-[82%] overflow-hidden rounded-[1.25rem] rounded-br-md bg-[#dce9ff] px-4 py-3 text-sm text-[#0b1427] shadow-sm [overflow-wrap:anywhere]">@HighlightCommandPaths(item.UserText)</div>
-                            </div>
-                            <div class="flex justify-start">
-                                <div class="max-w-[88%] min-w-0 overflow-hidden rounded-[1.25rem] rounded-bl-md border border-white/10 bg-[#17253a]/95 p-4 text-sm text-[#d9e2f1] shadow-sm">
-                                    <div class="flex flex-wrap items-start justify-between gap-3">
-                                        <div class="min-w-0">
-                                            <p class="text-xs font-semibold tracking-[0.14em] text-[#8fa1bc] uppercase">Requested action</p>
-                                            <h2 class="mt-1 text-base font-semibold text-white">@ActionTitle(item.CommandLabel)</h2>
-                                        </div>
-                                        <span class="@ActionStatusClass(item)">
-                                            @ActionStatusText(item)
-                                        </span>
-                                    </div>
-                                    <p class="mt-3 leading-6 text-[#cbd7e8] [overflow-wrap:anywhere]">@FormalAssistantMessage(item)</p>
-                                    @if (!string.IsNullOrWhiteSpace(item.ResolvedPath))
-                                    {
-                                        <div class="mt-4 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                                            <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Target path</p>
-                                            <p class="mt-1 max-w-full font-mono text-xs leading-5 whitespace-pre-wrap text-[#e8f2ff] [overflow-wrap:anywhere]">@item.ResolvedPath</p>
-                                        </div>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(item.ExecutionMessage))
-                                    {
-                                        <div class="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                                            <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Outcome</p>
-                                            <p class="mt-1 text-xs font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@item.ExecutionMessage</p>
-                                        </div>
-                                    }
-                                    <div class="mt-3 flex flex-wrap gap-2 font-semibold text-[0.7rem] text-[#8fa1bc]">
-                                        <span>Confidence @FormatConfidence(item.Confidence)</span>
-                                        <span>Source @item.Source</span>
-                                    </div>
-                                </div>
-                            </div>
+                            @ChatHistorySkeleton()
+                        }
+                        else
+                        {
+                            @if (_isLoadingOlderMessages)
+                            {
+                                @OlderMessagesSkeleton()
+                            }
+
+                            @foreach (var item in _history)
+                            {
+                                @ChatHistoryTurn(item)
+                            }
                         }
                     </div>
 
@@ -312,6 +196,25 @@
                                        value="@_pendingPathText"
                                        @oninput="OnPendingPathInput"
                                        disabled="@_isExecuting" />
+                            }
+
+                            @if (CanEditPendingRestart)
+                            {
+                                <div class="mt-4 max-w-xs">
+                                    <label class="block text-xs font-bold tracking-[0.16em] uppercase opacity-75" for="pending-restart-delay">Restart delay</label>
+                                    <div class="mt-2 flex items-center gap-2">
+                                        <input id="pending-restart-delay"
+                                               class="min-h-11 w-28 rounded-xl border border-white/10 bg-black/20 px-3 text-sm font-semibold text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                                               type="number"
+                                               min="1"
+                                               max="86400"
+                                               step="1"
+                                               value="@_pendingRestartDelaySeconds"
+                                               @oninput="OnPendingRestartDelayInput"
+                                               disabled="@_isExecuting" />
+                                        <span class="text-sm font-semibold opacity-80">seconds</span>
+                                    </div>
+                                </div>
                             }
 
                             @if (CanExecutePendingCommand)
@@ -459,9 +362,13 @@
 @code {
     private const string CommandInputId = "assistant-command-input";
     private const string PickLocationKind = "action-pick-location";
+    private const int ChatMessagePageSize = 30;
+    private static readonly TimeSpan RestartScheduleDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MaximumRestartScheduleDelay = TimeSpan.FromHours(24);
 
     private readonly List<AssistantHistoryItem> _history = new();
     private readonly List<ChatSessionSummary> _chats = new();
+    private readonly List<ScheduledTaskItem> _scheduledTasks = new();
     private readonly List<DirectorySuggestion> _directorySuggestions = new();
     private readonly List<DirectorySuggestion> _selectedDirectories = new();
     private static readonly DirectorySuggestion PickLocationSuggestion = new(string.Empty, "Pick a location", PickLocationKind);
@@ -469,20 +376,11 @@
         @"(?<path>[A-Za-z]:[\\/][^\s,;]*)",
         System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    private static readonly string[] StarterPrompts =
-    [
-        "Create a folder",
-        "Open downloads",
-        "Schedule a restart",
-        "Clean a folder",
-        "Check command safety",
-        "Practice a command",
-    ];
-
     private string _input = string.Empty;
     private string _pathTailInput = string.Empty;
     private string _pendingPathText = string.Empty;
     private string? _pendingPathError;
+    private int _pendingRestartDelaySeconds = (int)RestartScheduleDelay.TotalSeconds;
     private bool _isBusy;
     private bool _isExecuting;
     private string? _errorMessage;
@@ -498,12 +396,24 @@
     private bool _showCommandConfirmationModal;
     private bool _isSidebarCollapsed;
     private bool _focusCommandInputAfterRender;
+    private bool _isRefreshingScheduledTasks;
+    private bool _isLoadingSelectedChat;
+    private bool _isLoadingOlderMessages;
+    private bool _hasOlderMessages;
+    private bool _scrollMessagesToBottomAfterRender;
+    private bool _restoreOlderMessageScrollAfterRender;
     private Guid? _activeChatId;
+    private Guid? _loadingChatId;
+    private Guid? _cancellingScheduledTaskId;
+    private DateTimeOffset? _oldestLoadedMessageCreatedAtUtc;
+    private double _olderMessageScrollHeightBeforeLoad;
     private ChatSessionSummary? _chatPendingDeletion;
     private string _directorySuggestionTitle = "Directories";
+    private ElementReference _messageListElement;
     private DotNetObjectReference<Assistant>? _directoryPickerReference;
+    private System.Threading.Timer? _scheduledTaskTimer;
 
-    private bool IsSendDisabled => _isBusy || _activeChatId is null || string.IsNullOrWhiteSpace(BuildCommandText());
+    private bool IsSendDisabled => _isBusy || string.IsNullOrWhiteSpace(BuildCommandText());
 
     private string ShellClass => _isSidebarCollapsed
         ? "assistant-shell assistant-shell-collapsed min-w-0 bg-[#080b16] text-[#d9e2f1]"
@@ -521,14 +431,6 @@
         ? "w-0 overflow-hidden whitespace-nowrap opacity-0"
         : "min-w-0 truncate opacity-100";
 
-    private string SidebarBadgeClass => _isSidebarCollapsed
-        ? "hidden"
-        : "rounded-sm border border-[#8790a3] px-1 py-0.5 leading-none font-semibold text-[0.62rem] uppercase";
-
-    private string SidebarProjectAddClass => _isSidebarCollapsed
-        ? "hidden"
-        : "ml-auto flex size-5 items-center justify-center rounded-full border border-[#697386] text-xs";
-
     private string SidebarFullOnlyClass => _isSidebarCollapsed
         ? "hidden"
         : "flex min-h-0 flex-1 flex-col";
@@ -540,10 +442,6 @@
     private string SidebarProfileTextClass => _isSidebarCollapsed
         ? "hidden"
         : "min-w-0 flex-1";
-
-    private string SidebarUpgradeClass => _isSidebarCollapsed
-        ? "hidden"
-        : "rounded-xl border border-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10";
 
     private string SidebarToggleTitle => _isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
 
@@ -609,6 +507,176 @@
         }
     </div>;
 
+    private RenderFragment ChatHistorySkeleton() => @<div class="space-y-5">
+        @for (var skeletonIndex = 0; skeletonIndex < 3; skeletonIndex++)
+        {
+            <div class="flex justify-end">
+                <div class="h-11 w-[58%] max-w-[32rem] animate-pulse rounded-[1.25rem] rounded-br-md bg-[#dce9ff]/35"></div>
+            </div>
+            <div class="flex justify-start">
+                <div class="w-[88%] max-w-[42rem] rounded-[1.25rem] rounded-bl-md border border-white/10 bg-[#17253a]/95 p-4 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="space-y-2">
+                            <div class="h-3 w-28 animate-pulse rounded-full bg-white/10"></div>
+                            <div class="h-4 w-40 animate-pulse rounded-full bg-white/15"></div>
+                        </div>
+                        <div class="h-6 w-20 animate-pulse rounded-full bg-white/10"></div>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <div class="h-3 w-full animate-pulse rounded-full bg-white/10"></div>
+                        <div class="h-3 w-4/5 animate-pulse rounded-full bg-white/10"></div>
+                    </div>
+                    <div class="mt-4 h-14 animate-pulse rounded-xl bg-black/20"></div>
+                </div>
+            </div>
+        }
+    </div>;
+
+    private RenderFragment OlderMessagesSkeleton() => @<div class="space-y-3">
+        <div class="mx-auto h-8 w-40 animate-pulse rounded-full bg-white/10"></div>
+        <div class="flex justify-start">
+            <div class="h-20 w-[72%] animate-pulse rounded-[1.25rem] rounded-bl-md bg-[#17253a]/75"></div>
+        </div>
+    </div>;
+
+    private RenderFragment<AssistantHistoryItem> ChatHistoryTurn => item => @<text>
+        <div class="flex justify-end">
+            <div class="user-message-bubble max-w-[82%] overflow-hidden rounded-[1.25rem] rounded-br-md bg-[#dce9ff] px-4 py-3 text-sm text-[#0b1427] shadow-sm [overflow-wrap:anywhere]">@HighlightCommandPaths(item.UserText)</div>
+        </div>
+        <div class="flex justify-start">
+            <div class="max-w-[88%] min-w-0 overflow-hidden rounded-[1.25rem] rounded-bl-md border border-white/10 bg-[#17253a]/95 p-4 text-sm text-[#d9e2f1] shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold tracking-[0.14em] text-[#8fa1bc] uppercase">Requested action</p>
+                        <h2 class="mt-1 text-base font-semibold text-white">@ActionTitle(item.CommandLabel)</h2>
+                    </div>
+                    <span class="@ActionStatusClass(item)">
+                        @ActionStatusText(item)
+                    </span>
+                </div>
+                <p class="mt-3 leading-6 text-[#cbd7e8] [overflow-wrap:anywhere]">@FormalAssistantMessage(item)</p>
+                @if (!string.IsNullOrWhiteSpace(item.ResolvedPath) && !ShouldRenderFileDetails(item))
+                {
+                    <div class="mt-4 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Target path</p>
+                        <p class="mt-1 max-w-full font-mono text-xs leading-5 whitespace-pre-wrap text-[#e8f2ff] [overflow-wrap:anywhere]">@item.ResolvedPath</p>
+                    </div>
+                }
+                @if (ShouldRenderFileDetails(item))
+                {
+                    var fileDetails = ParseFileDetails(item.ExecutionMessage);
+                    var fullPath = FindFileDetailValue(fileDetails, "File details") ?? item.ResolvedPath;
+                    var fileName = FindFileDetailValue(fileDetails, "Name") ?? "Selected file";
+                    var owner = FindFileDetailValue(fileDetails, "Owner") ?? "Unknown";
+                    var size = FindFileDetailValue(fileDetails, "Size") ?? "Unknown";
+
+                    <div class="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#0f1b2c]">
+                        <div class="border-b border-white/10 bg-white/[0.03] px-4 py-3">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">File properties</p>
+                                    <h3 class="mt-1 truncate text-base font-semibold text-white">@fileName</h3>
+                                </div>
+                                <span class="max-w-full rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100 [overflow-wrap:anywhere]">Owner @owner</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(fullPath))
+                            {
+                                <p class="mt-3 max-w-full font-mono text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">@fullPath</p>
+                            }
+                        </div>
+
+                        <div class="grid gap-px bg-white/10 text-xs sm:grid-cols-3">
+                            <div class="bg-[#101d2f] px-4 py-3">
+                                <p class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">Size</p>
+                                <p class="mt-1 font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@size</p>
+                            </div>
+                            <div class="bg-[#101d2f] px-4 py-3">
+                                <p class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">Modified</p>
+                                <p class="mt-1 font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@(FindFileDetailValue(fileDetails, "Modified") ?? "Unknown")</p>
+                            </div>
+                            <div class="bg-[#101d2f] px-4 py-3">
+                                <p class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">Attributes</p>
+                                <p class="mt-1 font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@(FindFileDetailValue(fileDetails, "Attributes") ?? "Unknown")</p>
+                            </div>
+                        </div>
+
+                        <dl class="grid gap-px bg-white/10 text-xs sm:grid-cols-2">
+                            @foreach (var detail in fileDetails.Where(detail => !IsFeaturedFileDetail(detail.Key)))
+                            {
+                                <div class="min-w-0 bg-black/20 px-4 py-3">
+                                    <dt class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">@detail.Key</dt>
+                                    <dd class="mt-1 leading-5 text-[#e8f2ff] [overflow-wrap:anywhere]">@detail.Value</dd>
+                                </div>
+                            }
+                        </dl>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(item.ExecutionMessage))
+                {
+                    <div class="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Outcome</p>
+                        <p class="mt-1 text-xs font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@item.ExecutionMessage</p>
+                    </div>
+                }
+                <div class="mt-3 flex flex-wrap gap-2 font-semibold text-[0.7rem] text-[#8fa1bc]">
+                    <span>Confidence @FormatConfidence(item.Confidence)</span>
+                    <span>Source @item.Source</span>
+                </div>
+            </div>
+        </div>
+    </text>;
+
+    private RenderFragment ScheduledTaskQueuePanel() => @<div>
+        @if (_scheduledTasks.Count > 0)
+        {
+            <section class="mt-5 w-full rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 text-left shadow-xl shadow-black/20">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Scheduled queue</p>
+                        <h2 class="mt-1 text-base font-semibold text-white">Pending system tasks</h2>
+                    </div>
+                    <span class="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100">
+                        @_scheduledTasks.Count queued
+                    </span>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    @foreach (var task in _scheduledTasks.OrderBy(task => task.QueuePosition))
+                    {
+                        <div class="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold text-white">@task.DisplayName</p>
+                                    <p class="mt-1 text-xs leading-5 text-[#aab6c9]">
+                                        Queue #@task.QueuePosition &middot; @FormatScheduledFor(task.ScheduledForUtc)
+                                    </p>
+                                </div>
+                                <span class="@ScheduledTaskCountdownClass(task)">
+                                    @FormatScheduledCountdown(task)
+                                </span>
+                            </div>
+                            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                        type="button"
+                                        disabled="@(_isExecuting || _cancellingScheduledTaskId == task.Id)"
+                                        @onclick="() => CancelScheduledTaskAsync(task)">
+                                    @(_cancellingScheduledTaskId == task.Id ? "Cancelling..." : "Cancel task")
+                                </button>
+                            </div>
+                            <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                                <div class="h-full rounded-full bg-[#8ec5ff]" style="@ScheduledTaskProgressStyle(task)"></div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(task.LastMessage))
+                            {
+                                <p class="mt-2 text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">@task.LastMessage</p>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </div>;
+
     private string CommandInputClass(string textSize)
     {
         return $"min-h-8 min-w-[12rem] flex-1 bg-transparent {textSize} text-white outline-none placeholder:text-[#8995ad] disabled:text-[#8995ad]";
@@ -624,6 +692,8 @@
             or "filesystem.delete_folder"
             or "filesystem.open_folder"
             or "filesystem.get_file_details";
+
+    private bool CanEditPendingRestart => _pendingCommand?.CommandLabel == "system.restart";
 
     private bool ShowDirectorySuggestions => _showDirectorySuggestions && _directorySuggestions.Count > 0;
 
@@ -689,16 +759,35 @@
             _focusCommandInputAfterRender = false;
             await JsRuntime.InvokeVoidAsync("pcAssistantDirectoryPicker.focus", CommandInputId);
         }
+
+        if (_restoreOlderMessageScrollAfterRender)
+        {
+            _restoreOlderMessageScrollAfterRender = false;
+            await JsRuntime.InvokeVoidAsync(
+                "pcAssistantMessageList.restoreAfterPrepend",
+                _messageListElement,
+                _olderMessageScrollHeightBeforeLoad);
+            _olderMessageScrollHeightBeforeLoad = 0;
+        }
+
+        if (_scrollMessagesToBottomAfterRender)
+        {
+            _scrollMessagesToBottomAfterRender = false;
+            await JsRuntime.InvokeVoidAsync("pcAssistantMessageList.scrollToBottom", _messageListElement);
+        }
     }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            await RefreshScheduledTasksAsync();
             await LoadChatsAsync();
+            StartScheduledTaskTimer();
         }
         catch (Exception ex)
         {
+            _isLoadingChats = false;
             _errorMessage = $"Could not load command history: {ex.Message}";
         }
     }
@@ -711,17 +800,12 @@
             return;
         }
 
-        var activeChatId = _activeChatId;
-        if (activeChatId is null)
-        {
-            return;
-        }
-
         _isBusy = true;
         _errorMessage = null;
         _pendingCommand = null;
         _pendingPathText = string.Empty;
         _pendingPathError = null;
+        _pendingRestartDelaySeconds = (int)RestartScheduleDelay.TotalSeconds;
         _lastResponse = null;
         _lowConfidenceRequiresConfirmation = false;
         _pendingCommandLogId = null;
@@ -730,6 +814,7 @@
 
         try
         {
+            var activeChatId = _activeChatId ?? await CreateChatForFirstCommandAsync();
             var response = await AiClient.PredictAsync(text);
             _lastResponse = response;
 
@@ -739,10 +824,11 @@
             var parsed = Parser.Parse(_effectiveLabel, text, requiresConfirmation);
             _pendingCommand = parsed;
             _pendingPathText = parsed.ResolvedPath ?? parsed.PathText ?? string.Empty;
+            _pendingRestartDelaySeconds = RestartDelaySeconds(parsed.RestartDelay);
 
             var message = BuildPredictionMessage(response, parsed);
             var historyItem = await CommandHistory.RecordPredictionAsync(
-                activeChatId.Value,
+                activeChatId,
                 text,
                 response,
                 parsed,
@@ -751,8 +837,10 @@
                 _lowConfidenceRequiresConfirmation);
 
             _history.Add(AssistantHistoryItem.FromCommandHistory(historyItem));
+            _oldestLoadedMessageCreatedAtUtc = _history.Min(item => item.CreatedAtUtc);
+            _scrollMessagesToBottomAfterRender = true;
             _pendingCommandLogId = historyItem.Id;
-            await RefreshChatsAsync(activeChatId.Value);
+            await RefreshChatsAsync(activeChatId);
 
             _input = string.Empty;
             _pathTailInput = string.Empty;
@@ -795,17 +883,50 @@
                 ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(updatedHistory));
             }
         }
+        else if (CanEditPendingRestart)
+        {
+            RefreshPendingRestartDelay();
+            if (_pendingCommandLogId is Guid restartUpdateLogId && _pendingCommand is not null)
+            {
+                var updatedHistory = await CommandHistory.UpdatePlannedTargetAsync(
+                    restartUpdateLogId,
+                    _pendingCommand,
+                    BuildPendingAssistantMessage(_pendingCommand));
+                ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(updatedHistory));
+            }
+        }
+
+        var commandToExecute = _pendingCommand;
+        if (commandToExecute is null)
+        {
+            return;
+        }
 
         _isExecuting = true;
         _errorMessage = null;
 
         try
         {
-            var result = await Executor.ExecuteAsync(_pendingCommand, confirmed: true);
+            var result = await Executor.ExecuteAsync(commandToExecute, confirmed: true);
             if (_pendingCommandLogId is Guid commandLogId)
             {
                 var historyItem = await CommandHistory.RecordExecutionAsync(commandLogId, result);
                 ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(historyItem));
+
+                if (result.Succeeded && commandToExecute.CommandLabel == "system.restart")
+                {
+                    await ScheduledTasks.QueueRestartAsync(
+                        _activeChatId,
+                        commandLogId,
+                        commandToExecute.RestartDelay ?? RestartScheduleDelay,
+                        result.Message);
+                    await RefreshScheduledTasksAsync();
+                }
+                else if (result.Succeeded && commandToExecute.CommandLabel == "system.cancel_restart")
+                {
+                    await ScheduledTasks.CancelQueuedRestartTasksAsync(result.Message);
+                    await RefreshScheduledTasksAsync();
+                }
             }
 
             _pendingCommand = null;
@@ -860,6 +981,58 @@
         _pendingCommandLogId = null;
         _pendingPathText = string.Empty;
         _pendingPathError = null;
+        _pendingRestartDelaySeconds = (int)RestartScheduleDelay.TotalSeconds;
+    }
+
+    private async Task CancelScheduledTaskAsync(ScheduledTaskItem task)
+    {
+        if (_cancellingScheduledTaskId is not null)
+        {
+            return;
+        }
+
+        _cancellingScheduledTaskId = task.Id;
+        _errorMessage = null;
+
+        try
+        {
+            var result = await Executor.ExecuteAsync(
+                new ParsedCommand
+                {
+                    CommandLabel = "system.cancel_restart",
+                    OriginalText = "cancel restart",
+                    Preview = "Cancel a pending Windows restart or shutdown.",
+                },
+                confirmed: true);
+
+            if (!result.Succeeded)
+            {
+                _errorMessage = result.Message;
+                return;
+            }
+
+            var cancelled = await ScheduledTasks.CancelQueuedTaskAsync(task.Id, result.Message);
+            if (cancelled is null)
+            {
+                _errorMessage = "The scheduled task was no longer queued.";
+            }
+
+            if (task.CommandLogId is Guid commandLogId)
+            {
+                var historyItem = await CommandHistory.RecordCancellationAsync(commandLogId, result.Message);
+                ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(historyItem));
+            }
+
+            await RefreshScheduledTasksAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _cancellingScheduledTaskId = null;
+        }
     }
 
     private async Task OnCommandInputAsync(ChangeEventArgs args)
@@ -996,14 +1169,57 @@
         var chats = await CommandHistory.ListChatsAsync();
         _chats.AddRange(chats);
 
-        if (_chats.Count == 0)
+        _activeChatId = null;
+        _history.Clear();
+        _isLoadingChats = false;
+    }
+
+    private async Task<Guid> CreateChatForFirstCommandAsync()
+    {
+        var chat = await CommandHistory.CreateChatAsync();
+        _chats.Insert(0, chat);
+        _activeChatId = chat.Id;
+        return chat.Id;
+    }
+
+    private async Task RefreshScheduledTasksAsync()
+    {
+        if (_isRefreshingScheduledTasks)
         {
-            var newChat = await CommandHistory.CreateChatAsync();
-            _chats.Add(newChat);
+            return;
         }
 
-        await SelectChatAsync(_chats[0].Id);
-        _isLoadingChats = false;
+        _isRefreshingScheduledTasks = true;
+        try
+        {
+            await ScheduledTasks.CompleteDueTasksAsync();
+            var tasks = await ScheduledTasks.ListQueuedAsync();
+            _scheduledTasks.Clear();
+            _scheduledTasks.AddRange(tasks);
+        }
+        finally
+        {
+            _isRefreshingScheduledTasks = false;
+        }
+    }
+
+    private void StartScheduledTaskTimer()
+    {
+        _scheduledTaskTimer ??= new System.Threading.Timer(
+            _ => _ = InvokeAsync(OnScheduledTaskTimerTickAsync),
+            null,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(1));
+    }
+
+    private async Task OnScheduledTaskTimerTickAsync()
+    {
+        if (_scheduledTasks.Any(task => task.ScheduledForUtc <= DateTimeOffset.UtcNow))
+        {
+            await RefreshScheduledTasksAsync();
+        }
+
+        StateHasChanged();
     }
 
     private async Task RefreshChatsAsync(Guid activeChatId)
@@ -1033,17 +1249,128 @@
         _lowConfidenceRequiresConfirmation = false;
         _pathTailInput = string.Empty;
         ClearDirectorySuggestions();
-
-        var chat = await CommandHistory.GetChatAsync(chatSessionId);
         _activeChatId = chatSessionId;
+        _loadingChatId = chatSessionId;
+        _isLoadingSelectedChat = true;
+        _isLoadingOlderMessages = false;
+        _hasOlderMessages = false;
+        _oldestLoadedMessageCreatedAtUtc = null;
         _history.Clear();
-        _history.AddRange(chat.Messages.Select(AssistantHistoryItem.FromCommandHistory));
+        StateHasChanged();
 
-        var existingIndex = _chats.FindIndex(existingChat => existingChat.Id == chatSessionId);
-        if (existingIndex >= 0)
+        try
         {
-            _chats[existingIndex] = chat.Summary;
+            var chat = await CommandHistory.GetChatAsync(chatSessionId, ChatMessagePageSize);
+            if (_loadingChatId != chatSessionId)
+            {
+                return;
+            }
+
+            _history.Clear();
+            _history.AddRange(chat.Messages.Select(AssistantHistoryItem.FromCommandHistory));
+            ApplyChatPageState(chat);
+            _scrollMessagesToBottomAfterRender = true;
+
+            var existingIndex = _chats.FindIndex(existingChat => existingChat.Id == chatSessionId);
+            if (existingIndex >= 0)
+            {
+                _chats[existingIndex] = chat.Summary;
+            }
         }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not load chat messages: {ex.Message}";
+        }
+        finally
+        {
+            if (_loadingChatId == chatSessionId)
+            {
+                _isLoadingSelectedChat = false;
+                _loadingChatId = null;
+            }
+        }
+    }
+
+    private async Task LoadOlderMessagesAsync()
+    {
+        if (_activeChatId is not Guid activeChatId
+            || _isLoadingSelectedChat
+            || _isLoadingOlderMessages
+            || !_hasOlderMessages)
+        {
+            return;
+        }
+
+        _isLoadingOlderMessages = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            if (_olderMessageScrollHeightBeforeLoad <= 0)
+            {
+                var metrics = await JsRuntime.InvokeAsync<MessageListMetrics>(
+                    "pcAssistantMessageList.getMetrics",
+                    _messageListElement);
+                _olderMessageScrollHeightBeforeLoad = metrics.ScrollHeight;
+            }
+
+            var chat = await CommandHistory.GetChatAsync(
+                activeChatId,
+                ChatMessagePageSize,
+                _oldestLoadedMessageCreatedAtUtc);
+            if (_activeChatId != activeChatId)
+            {
+                return;
+            }
+
+            var existingIds = _history.Select(item => item.Id).ToHashSet();
+            var olderMessages = chat.Messages
+                .Where(message => !existingIds.Contains(message.Id))
+                .Select(AssistantHistoryItem.FromCommandHistory)
+                .ToArray();
+            _history.InsertRange(0, olderMessages);
+            ApplyChatPageState(chat);
+            if (olderMessages.Length > 0)
+            {
+                _restoreOlderMessageScrollAfterRender = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not load older messages: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingOlderMessages = false;
+        }
+    }
+
+    private async Task OnMessageListScrollAsync()
+    {
+        if (!_hasOlderMessages || _isLoadingOlderMessages || _isLoadingSelectedChat)
+        {
+            return;
+        }
+
+        var metrics = await JsRuntime.InvokeAsync<MessageListMetrics>(
+            "pcAssistantMessageList.getMetrics",
+            _messageListElement);
+        if (metrics.ScrollTop > 96)
+        {
+            return;
+        }
+
+        _olderMessageScrollHeightBeforeLoad = metrics.ScrollHeight;
+        await LoadOlderMessagesAsync();
+    }
+
+    private void ApplyChatPageState(ChatSessionDetails chat)
+    {
+        _hasOlderMessages = chat.HasOlderMessages;
+        _oldestLoadedMessageCreatedAtUtc = _history.Count == 0
+            ? null
+            : _history.Min(item => item.CreatedAtUtc);
     }
 
     private void RequestDeleteChat(Guid chatSessionId)
@@ -1096,12 +1423,6 @@
             ? _chats[0].Id
             : _activeChatId ?? _chats[0].Id;
         await SelectChatAsync(nextChatId);
-    }
-
-    private void UseStarterPrompt(string prompt)
-    {
-        _input = prompt;
-        _pathTailInput = string.Empty;
     }
 
     private static bool HasInlinePath(string text)
@@ -1196,23 +1517,6 @@
             : "text-[#d8deeb] hover:bg-white/[0.06] hover:text-white";
 
         return $"group flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold transition {selectedClasses}";
-    }
-
-    private static string FormatChatDate(DateTimeOffset value)
-    {
-        var local = value.ToLocalTime();
-        var today = DateTimeOffset.Now.Date;
-        if (local.Date == today)
-        {
-            return local.ToString("h:mm tt");
-        }
-
-        if (local.Date == today.AddDays(-1))
-        {
-            return "Yesterday";
-        }
-
-        return local.ToString("MMM d");
     }
 
     private static string DirectorySuggestionIconClass(string kind)
@@ -1397,6 +1701,15 @@
         RefreshPendingPath();
     }
 
+    private void OnPendingRestartDelayInput(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        _pendingRestartDelaySeconds = int.TryParse(value, out var seconds)
+            ? Math.Clamp(seconds, 1, (int)MaximumRestartScheduleDelay.TotalSeconds)
+            : (int)RestartScheduleDelay.TotalSeconds;
+        RefreshPendingRestartDelay();
+    }
+
     private void RefreshPendingPath()
     {
         if (_pendingCommand is null || !CanEditPendingPath)
@@ -1426,6 +1739,7 @@
             LocationType = command.LocationType,
             PathText = targetPath,
             ResolvedPath = string.IsNullOrWhiteSpace(targetPath) ? null : targetPath,
+            RestartDelay = command.RestartDelay,
             RequiresConfirmation = command.RequiresConfirmation,
             IsDangerous = isBlocked,
             Preview = isBlocked
@@ -1433,6 +1747,68 @@
                 : BuildPathPreview(command.CommandLabel, targetPath),
             ErrorMessage = isBlocked ? errorMessage : null,
         };
+    }
+
+    private void RefreshPendingRestartDelay()
+    {
+        if (_pendingCommand is null || !CanEditPendingRestart)
+        {
+            return;
+        }
+
+        var delay = TimeSpan.FromSeconds(Math.Clamp(
+            _pendingRestartDelaySeconds,
+            1,
+            (int)MaximumRestartScheduleDelay.TotalSeconds));
+        _pendingRestartDelaySeconds = (int)delay.TotalSeconds;
+        _pendingCommand = CreateEditedRestartCommand(_pendingCommand, delay);
+    }
+
+    private static ParsedCommand CreateEditedRestartCommand(ParsedCommand command, TimeSpan delay)
+    {
+        return new ParsedCommand
+        {
+            CommandLabel = command.CommandLabel,
+            OriginalText = command.OriginalText,
+            FolderName = command.FolderName,
+            LocationAlias = command.LocationAlias,
+            LocationType = command.LocationType,
+            PathText = command.PathText,
+            ResolvedPath = command.ResolvedPath,
+            RestartDelay = delay,
+            RequiresConfirmation = command.RequiresConfirmation,
+            IsDangerous = command.IsDangerous,
+            Preview = $"Restart this PC {FormatDelayPreview(delay)}.",
+            ErrorMessage = command.ErrorMessage,
+        };
+    }
+
+    private static int RestartDelaySeconds(TimeSpan? delay)
+    {
+        var normalized = delay is null || delay.Value < TimeSpan.FromSeconds(1)
+            ? RestartScheduleDelay
+            : delay.Value > MaximumRestartScheduleDelay
+                ? MaximumRestartScheduleDelay
+                : delay.Value;
+        return Math.Max(1, (int)Math.Round(normalized.TotalSeconds));
+    }
+
+    private static string FormatDelayPreview(TimeSpan delay)
+    {
+        if (delay.TotalHours >= 1 && delay.TotalHours % 1 == 0)
+        {
+            var hours = (int)delay.TotalHours;
+            return $"after {hours} {(hours == 1 ? "hour" : "hours")}";
+        }
+
+        if (delay.TotalMinutes >= 1 && delay.TotalMinutes % 1 == 0)
+        {
+            var minutes = (int)delay.TotalMinutes;
+            return $"after {minutes} {(minutes == 1 ? "minute" : "minutes")}";
+        }
+
+        var seconds = Math.Max(1, (int)Math.Round(delay.TotalSeconds));
+        return $"after {seconds} {(seconds == 1 ? "second" : "seconds")}";
     }
 
     private static string BuildPathPreview(string commandLabel, string targetPath)
@@ -1524,6 +1900,82 @@
         return "Review the action details before continuing.";
     }
 
+    private static bool ShouldRenderFileDetails(AssistantHistoryItem item)
+    {
+        return item.CommandLabel == "filesystem.get_file_details"
+            && item.ExecutionStatus.Equals("succeeded", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(item.ExecutionMessage);
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, string>> ParseFileDetails(string? executionMessage)
+    {
+        if (string.IsNullOrWhiteSpace(executionMessage))
+        {
+            return Array.Empty<KeyValuePair<string, string>>();
+        }
+
+        var details = new List<KeyValuePair<string, string>>();
+        foreach (var line in executionMessage.Split(
+            ['\r', '\n'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separatorIndex = line.IndexOf(':', StringComparison.Ordinal);
+            if (separatorIndex <= 0 || separatorIndex >= line.Length - 1)
+            {
+                continue;
+            }
+
+            var label = line[..separatorIndex].Trim();
+            var value = FormatFileDetailValue(label, line[(separatorIndex + 1)..].Trim());
+            if (!string.IsNullOrWhiteSpace(label) && !string.IsNullOrWhiteSpace(value))
+            {
+                details.Add(new KeyValuePair<string, string>(label, value));
+            }
+        }
+
+        return details;
+    }
+
+    private static string FormatFileDetailValue(string label, string value)
+    {
+        if (!IsFileTimestampDetail(label))
+        {
+            return value;
+        }
+
+        if (DateTimeOffset.TryParse(value, out var timestampWithOffset))
+        {
+            return timestampWithOffset.ToLocalTime().ToString("MMM d, yyyy, h:mm tt");
+        }
+
+        return DateTime.TryParse(value, out var timestamp)
+            ? timestamp.ToString("MMM d, yyyy, h:mm tt")
+            : value;
+    }
+
+    private static bool IsFileTimestampDetail(string label)
+    {
+        return label.Equals("Created", StringComparison.OrdinalIgnoreCase)
+            || label.Equals("Modified", StringComparison.OrdinalIgnoreCase)
+            || label.Equals("Accessed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? FindFileDetailValue(IReadOnlyList<KeyValuePair<string, string>> details, string key)
+    {
+        return details.FirstOrDefault(
+            detail => detail.Key.Equals(key, StringComparison.OrdinalIgnoreCase)).Value;
+    }
+
+    private static bool IsFeaturedFileDetail(string key)
+    {
+        return key.Equals("File details", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Name", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Owner", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Size", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Modified", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Attributes", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ActionStatusText(AssistantHistoryItem item)
     {
         return item.ExecutionStatus.ToLowerInvariant() switch
@@ -1554,6 +2006,44 @@
         return $"{confidence:P0}";
     }
 
+    private static string FormatScheduledFor(DateTimeOffset scheduledForUtc)
+    {
+        return scheduledForUtc.ToLocalTime().ToString("h:mm tt");
+    }
+
+    private static string FormatScheduledCountdown(ScheduledTaskItem task)
+    {
+        var remaining = task.ScheduledForUtc - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return "Due now";
+        }
+
+        return remaining.TotalMinutes >= 1
+            ? $"{(int)remaining.TotalMinutes:D2}:{remaining.Seconds:D2}"
+            : $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds))}s";
+    }
+
+    private static string ScheduledTaskCountdownClass(ScheduledTaskItem task)
+    {
+        var remaining = task.ScheduledForUtc - DateTimeOffset.UtcNow;
+        var baseClass = "rounded-full px-3 py-1 text-xs font-semibold";
+        return remaining <= TimeSpan.FromSeconds(10)
+            ? $"{baseClass} bg-amber-300/15 text-amber-100 ring-1 ring-amber-300/25"
+            : $"{baseClass} bg-sky-300/10 text-sky-100 ring-1 ring-sky-300/25";
+    }
+
+    private static string ScheduledTaskProgressStyle(ScheduledTaskItem task)
+    {
+        var totalSeconds = Math.Max(1, (task.ScheduledForUtc - task.CreatedAtUtc).TotalSeconds);
+        var elapsedSeconds = Math.Clamp(
+            (DateTimeOffset.UtcNow - task.CreatedAtUtc).TotalSeconds,
+            0,
+            totalSeconds);
+        var percentage = elapsedSeconds / totalSeconds * 100;
+        return $"width: {percentage:F0}%";
+    }
+
     private static string ConfidenceClass(double confidence)
     {
         if (confidence < 0.60)
@@ -1569,8 +2059,18 @@
         return "rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-400/[0.12] dark:text-emerald-200";
     }
 
+    private sealed class MessageListMetrics
+    {
+        public double ScrollTop { get; set; }
+
+        public double ScrollHeight { get; set; }
+
+        public double ClientHeight { get; set; }
+    }
+
     public void Dispose()
     {
+        _scheduledTaskTimer?.Dispose();
         _directoryPickerReference?.Dispose();
     }
 

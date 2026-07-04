@@ -1,4 +1,4 @@
-namespace PcAssistant.Application.Abstractions;
+namespace PcAssistant.Application.Abstractions.UnitOfWorks;
 
 public interface ICommandHistoryUnitOfWorkFactory
 {

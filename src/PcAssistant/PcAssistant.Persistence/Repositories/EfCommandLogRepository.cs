@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using PcAssistant.Application.Abstractions;
-using PcAssistant.Domain;
+using PcAssistant.Application.Abstractions.Repositories;
+using PcAssistant.Domain.Entity;
+using PcAssistant.Persistence.Database;
 
 namespace PcAssistant.Persistence.Repositories;
 
@@ -38,8 +39,36 @@ internal sealed class EfCommandLogRepository(IPcAssistantDbContext dbContext) : 
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<CommandLogEntry>> ListByChatSessionPageAsync(
+        Guid chatSessionId,
+        DateTimeOffset? beforeCreatedAtUtc,
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        var take = Math.Clamp(count, 1, 101);
+        var query = dbContext.CommandLogs
+            .AsNoTracking()
+            .Where(entry => entry.ChatSessionId == chatSessionId);
+
+        if (beforeCreatedAtUtc is not null)
+        {
+            query = query.Where(entry => entry.CreatedAtUtc < beforeCreatedAtUtc.Value);
+        }
+
+        return await query
+            .OrderByDescending(entry => entry.CreatedAtUtc)
+            .Take(take)
+            .OrderBy(entry => entry.CreatedAtUtc)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public Task<bool> ExistsInChatSessionAsync(Guid chatSessionId, CancellationToken cancellationToken = default)
     {
         return dbContext.CommandLogs.AnyAsync(entry => entry.ChatSessionId == chatSessionId, cancellationToken);
+    }
+
+    public Task<int> CountByChatSessionAsync(Guid chatSessionId, CancellationToken cancellationToken = default)
+    {
+        return dbContext.CommandLogs.CountAsync(entry => entry.ChatSessionId == chatSessionId, cancellationToken);
     }
 }

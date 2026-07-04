@@ -1,12 +1,16 @@
 using PcAssistant.Application.Models;
 
-namespace PcAssistant.Application.Abstractions;
+namespace PcAssistant.Application.Abstractions.Services;
 
 public interface ICommandHistoryService
 {
     Task<IReadOnlyList<ChatSessionSummary>> ListChatsAsync(CancellationToken cancellationToken = default);
 
-    Task<ChatSessionDetails> GetChatAsync(Guid chatSessionId, CancellationToken cancellationToken = default);
+    Task<ChatSessionDetails> GetChatAsync(
+        Guid chatSessionId,
+        int messageCount = 30,
+        DateTimeOffset? beforeCreatedAtUtc = null,
+        CancellationToken cancellationToken = default);
 
     Task<ChatSessionSummary> CreateChatAsync(CancellationToken cancellationToken = default);
 

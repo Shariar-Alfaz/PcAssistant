@@ -15,7 +15,17 @@
 
     <div class="status-bar-safe-area"></div>
 
-    <div id="app">Loading...</div>
+    <div id="app">
+        <main class="flex min-h-screen items-center justify-center bg-[#080b16] px-6 text-center text-[#d9e2f1]">
+            <section class="flex flex-col items-center">
+                <div class="flex size-16 items-center justify-center rounded-2xl border border-white/10 bg-[#121c31] shadow-2xl shadow-black/20">
+                    <span class="size-7 animate-spin rounded-full border-2 border-[#8ec5ff]/25 border-t-[#dce9ff]"></span>
+                </div>
+                <h1 class="mt-5 text-2xl font-semibold tracking-normal text-white">PcAssistant</h1>
+                <p class="mt-2 text-sm text-[#aab6c9]">Starting your command workspace.</p>
+            </section>
+        </main>
+    </div>
 
     <div id="blazor-error-ui" data-nosnippet>
         An unhandled error has occurred.

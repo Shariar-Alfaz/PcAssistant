@@ -2,7 +2,7 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PcAssistant.Infrastructure.DependencyInjection;
-using PcAssistant.Persistence;
+using PcAssistant.Persistence.Database;
 using PcAssistant.Persistence.DependencyInjection;
 
 namespace PcAssistant

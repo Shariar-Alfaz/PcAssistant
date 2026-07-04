@@ -1,4 +1,4 @@
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
 using PcAssistant.Infrastructure.Commands.Parsing;
 

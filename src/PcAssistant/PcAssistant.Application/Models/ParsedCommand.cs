@@ -16,6 +16,8 @@ public sealed class ParsedCommand
 
     public string? ResolvedPath { get; init; }
 
+    public TimeSpan? RestartDelay { get; init; }
+
     public bool RequiresConfirmation { get; init; }
 
     public bool IsDangerous { get; init; }

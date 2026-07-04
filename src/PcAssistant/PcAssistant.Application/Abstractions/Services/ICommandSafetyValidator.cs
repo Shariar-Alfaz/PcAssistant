@@ -1,6 +1,6 @@
 using PcAssistant.Application.Models;
 
-namespace PcAssistant.Application.Abstractions;
+namespace PcAssistant.Application.Abstractions.Services;
 
 public interface ICommandSafetyValidator
 {

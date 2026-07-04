@@ -1,6 +1,6 @@
-using PcAssistant.Domain;
+using PcAssistant.Domain.Entity;
 
-namespace PcAssistant.Application.Abstractions;
+namespace PcAssistant.Application.Abstractions.Services;
 
 public interface IChatSessionRepository
 {

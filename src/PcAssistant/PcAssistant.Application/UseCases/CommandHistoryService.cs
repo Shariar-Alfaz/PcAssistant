@@ -1,6 +1,7 @@
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
+using PcAssistant.Application.Abstractions.UnitOfWorks;
 using PcAssistant.Application.Models;
-using PcAssistant.Domain;
+using PcAssistant.Domain.Entity;
 
 namespace PcAssistant.Application.UseCases;
 
@@ -11,19 +12,31 @@ public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitO
     {
         await using var unitOfWork = unitOfWorkFactory.Create();
         var sessions = await unitOfWork.ChatSessions.ListAsync(cancellationToken);
-        return sessions.Select(ToChatSummary).ToArray();
+        return sessions.Select(session => ToChatSummary(session, commandCount: 0)).ToArray();
     }
 
     public async Task<ChatSessionDetails> GetChatAsync(
         Guid chatSessionId,
+        int messageCount = 30,
+        DateTimeOffset? beforeCreatedAtUtc = null,
         CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Create();
         var session = await GetRequiredSessionAsync(unitOfWork, chatSessionId, cancellationToken);
-        var entries = await unitOfWork.CommandLogs.ListByChatSessionAsync(chatSessionId, cancellationToken);
+        var commandCount = await unitOfWork.CommandLogs.CountByChatSessionAsync(chatSessionId, cancellationToken);
+        var take = Math.Clamp(messageCount, 1, 100);
+        var entries = await unitOfWork.CommandLogs.ListByChatSessionPageAsync(
+            chatSessionId,
+            beforeCreatedAtUtc,
+            take + 1,
+            cancellationToken);
+        var hasOlderMessages = entries.Count > take;
+        var visibleEntries = entries.TakeLast(take).ToArray();
         return new ChatSessionDetails(
-            ToChatSummary(session),
-            entries.Select(ToHistoryItem).ToArray());
+            ToChatSummary(session, commandCount),
+            visibleEntries.Select(ToHistoryItem).ToArray(),
+            hasOlderMessages,
+            visibleEntries.FirstOrDefault()?.CreatedAtUtc);
     }
 
     public async Task<ChatSessionSummary> CreateChatAsync(CancellationToken cancellationToken = default)
@@ -35,7 +48,7 @@ public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitO
         {
             await unitOfWork.ChatSessions.AddAsync(session, cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
-            return ToChatSummary(session);
+            return ToChatSummary(session, commandCount: 0);
         }
         catch
         {
@@ -215,13 +228,13 @@ public sealed class CommandHistoryService(ICommandHistoryUnitOfWorkFactory unitO
             entry.ExecutedAtUtc);
     }
 
-    private static ChatSessionSummary ToChatSummary(ChatSession session)
+    private static ChatSessionSummary ToChatSummary(ChatSession session, int commandCount)
     {
         return new ChatSessionSummary(
             session.Id,
             session.Title,
             session.CreatedAtUtc,
             session.UpdatedAtUtc,
-            session.CommandLogs.Count);
+            commandCount);
     }
 }
