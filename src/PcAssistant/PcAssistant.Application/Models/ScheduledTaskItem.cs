@@ -12,4 +12,10 @@ public sealed record ScheduledTaskItem(
     DateTimeOffset ScheduledForUtc,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? CompletedAtUtc,
-    string? LastMessage);
+    string? LastMessage,
+    string? AppPath,
+    string? AppDisplayName,
+    IReadOnlyList<string> RecipientNames,
+    string? MessageText,
+    string RepeatMode,
+    int RepeatDaysOfWeek);

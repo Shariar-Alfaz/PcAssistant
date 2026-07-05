@@ -114,6 +114,16 @@ htmlcov/
 pip-wheel-metadata/
 *.egg-info/
 
+# PyInstaller backend packaging output
+src/pcAssistantApi/.pyinstaller/
+src/pcAssistantApi/build/
+src/pcAssistantApi/dist/
+src/pcAssistantApi/*.spec
+
+# Generated companion API payload copied into the MAUI Windows app by the
+# FastAPI PyInstaller build script.
+src/PcAssistant/PcAssistant/Platforms/Windows/Api/
+
 # Local configuration and secrets
 .env
 .env.*

@@ -1,22 +1,65 @@
 @inherits LayoutComponentBase
+@inject PcAssistant.Application.Abstractions.Services.IAiApiProcessService AiApiProcess
+@implements IAsyncDisposable
 
-<main class="@RootClass">
-    @Body
-</main>
+<div class="@RootClass">
+    <NavMenu />
+    <main class="min-h-0 min-w-0 overflow-hidden">
+        @Body
+    </main>
+</div>
+
+@if (_isStartingAiApi)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-[#080b16] px-6 text-center text-[#d9e2f1]">
+        <section class="flex flex-col items-center">
+            <div class="flex flex-col items-center">
+                <img class="size-16 rounded-2xl border border-white/10 shadow-2xl shadow-black/25" src="images/appicon.png" alt="PcAssistant" />
+                <span class="mt-4 block h-1 w-24 overflow-hidden rounded-full bg-[#17263c]">
+                    <span class="block h-full w-1/2 animate-pulse rounded-full bg-[#8ec5ff]"></span>
+                </span>
+            </div>
+            <h1 class="mt-5 text-2xl font-semibold tracking-normal text-white">PcAssistant</h1>
+            <p class="mt-2 text-sm text-[#aab6c9]">Starting AI service.</p>
+        </section>
+    </div>
+}
 
 @code {
-    private bool _isDarkMode;
+    private const string RootClass = "grid h-screen min-h-0 grid-cols-[auto_minmax(0,1fr)] overflow-hidden bg-[#080b16] text-slate-950";
+    private bool _isStartingAiApi = true;
+    private bool _hasStartedAiApi;
 
-    private string RootClass => _isDarkMode
-        ? "dark h-screen overflow-hidden bg-[#1f1f1f] text-neutral-100"
-        : "h-screen overflow-hidden bg-[#f7f7f7] text-slate-950";
-
-    private string ThemeLabel => _isDarkMode ? "Dark" : "Light";
-
-    private string ThemeToggleTitle => _isDarkMode ? "Switch to light mode" : "Switch to dark mode";
-
-    private void ToggleTheme()
+    protected override void OnAfterRender(bool firstRender)
     {
-        _isDarkMode = !_isDarkMode;
+        if (!firstRender || _hasStartedAiApi)
+        {
+            return;
+        }
+
+        _hasStartedAiApi = true;
+        _ = StartAiApiAsync();
+    }
+
+    private async Task StartAiApiAsync()
+    {
+        try
+        {
+            await AiApiProcess.StartAsync();
+        }
+        catch
+        {
+            // Keep the UI available even if the bundled API cannot start.
+        }
+        finally
+        {
+            _isStartingAiApi = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await AiApiProcess.StopAsync();
     }
 }

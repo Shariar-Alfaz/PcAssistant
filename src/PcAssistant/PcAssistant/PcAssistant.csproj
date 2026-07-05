@@ -66,6 +66,13 @@
         <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
 
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+        <Content Include="Platforms\Windows\Api\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <TargetPath>Api\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+        </Content>
+    </ItemGroup>
+
     <ItemGroup>
         <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="11.0.1" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.80" />

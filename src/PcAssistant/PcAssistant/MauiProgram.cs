@@ -1,9 +1,11 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Infrastructure.DependencyInjection;
 using PcAssistant.Persistence.Database;
 using PcAssistant.Persistence.DependencyInjection;
+using PcAssistant.Services;
 
 namespace PcAssistant
 {
@@ -32,6 +34,13 @@ namespace PcAssistant
 
             var app = builder.Build();
             app.Services.GetRequiredService<PcAssistantDatabaseInitializer>().Initialize();
+            var aiApiProcess = app.Services.GetRequiredService<IAiApiProcessService>();
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                aiApiProcess.StopAsync().GetAwaiter().GetResult();
+            };
+
+            app.Services.GetRequiredService<ScheduledTaskRunner>().Start();
 
             return app;
         }
@@ -40,6 +49,8 @@ namespace PcAssistant
         {
             builder.RegisterModule(new PcAssistantInfrastructureModule());
             builder.RegisterModule(new PcAssistantPersistenceModule(databasePath));
+            builder.RegisterType<ScheduledTaskRunner>()
+                .InstancePerLifetimeScope();
         }
     }
 }

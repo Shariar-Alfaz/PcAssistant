@@ -20,10 +20,10 @@ public sealed class PcAssistantPersistenceModule(string databasePath) : Module
             new DbContextOptionsBuilder<PcAssistantDbContext>()
                 .UseSqlite(connectionString)
                 .Options)
-            .SingleInstance();
+            .InstancePerLifetimeScope();
 
         builder.RegisterType<SqliteProviderBootstrapper>()
-            .SingleInstance();
+            .InstancePerLifetimeScope();
 
         builder.RegisterType<PcAssistantDbContext>()
             .AsSelf()

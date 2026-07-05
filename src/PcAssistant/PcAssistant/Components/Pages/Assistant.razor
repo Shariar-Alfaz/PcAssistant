@@ -10,6 +10,7 @@
 @inject IScheduledTaskService ScheduledTasks
 @inject IJSRuntime JsRuntime
 @using PcAssistant.Application.Abstractions.Services
+@using PcAssistant.Domain.Entity
 @implements IDisposable
 
 <PageTitle>Assistant</PageTitle>
@@ -37,6 +38,14 @@
                 </svg>
                 <span class="@SidebarTextClass">New chat</span>
             </button>
+            <a class="copilot-nav-item w-full"
+               href="automation">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M7 4.5v3m10-3v3M5.5 10h13M6 6h12a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 18 19H6a1.5 1.5 0 0 1-1.5-1.5v-10A1.5 1.5 0 0 1 6 6Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="m9 14 2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="@SidebarTextClass">Automation</span>
+            </a>
         </nav>
 
         <div class="@SidebarFullOnlyClass">
@@ -413,15 +422,14 @@
     private DotNetObjectReference<Assistant>? _directoryPickerReference;
     private System.Threading.Timer? _scheduledTaskTimer;
 
+    [SupplyParameterFromQuery(Name = "chatId")]
+    public Guid? RequestedChatId { get; set; }
+
     private bool IsSendDisabled => _isBusy || string.IsNullOrWhiteSpace(BuildCommandText());
 
-    private string ShellClass => _isSidebarCollapsed
-        ? "assistant-shell assistant-shell-collapsed min-w-0 bg-[#080b16] text-[#d9e2f1]"
-        : "assistant-shell min-w-0 bg-[#080b16] text-[#d9e2f1]";
+    private string ShellClass => "h-screen min-w-0 bg-[#080b16] text-[#d9e2f1]";
 
-    private string SidebarClass => _isSidebarCollapsed
-        ? "copilot-sidebar copilot-sidebar-collapsed flex h-screen min-h-0 min-w-0 flex-col overflow-hidden bg-[#0d101a] px-3 py-4 text-[#d8deeb]"
-        : "copilot-sidebar flex h-screen min-h-0 min-w-0 flex-col overflow-hidden bg-[#0d101a] px-3 py-4 text-[#d8deeb]";
+    private string SidebarClass => "hidden";
 
     private string SidebarBrandClass => _isSidebarCollapsed
         ? "pointer-events-none w-0 overflow-hidden whitespace-nowrap text-lg font-semibold tracking-normal text-white opacity-0"
@@ -633,7 +641,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Scheduled queue</p>
-                        <h2 class="mt-1 text-base font-semibold text-white">Pending system tasks</h2>
+                        <h2 class="mt-1 text-base font-semibold text-white">Pending automations</h2>
                     </div>
                     <span class="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100">
                         @_scheduledTasks.Count queued
@@ -648,8 +656,14 @@
                                 <div class="min-w-0">
                                     <p class="text-sm font-semibold text-white">@task.DisplayName</p>
                                     <p class="mt-1 text-xs leading-5 text-[#aab6c9]">
-                                        Queue #@task.QueuePosition &middot; @FormatScheduledFor(task.ScheduledForUtc)
+                                        Queue #@task.QueuePosition &middot; @FormatScheduledFor(task.ScheduledForUtc) &middot; @FormatScheduledTaskKind(task)
                                     </p>
+                                    @if (IsMessageAutomationTask(task))
+                                    {
+                                        <p class="mt-1 text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">
+                                            @task.AppDisplayName &middot; @FormatRecipients(task.RecipientNames)
+                                        </p>
+                                    }
                                 </div>
                                 <span class="@ScheduledTaskCountdownClass(task)">
                                     @FormatScheduledCountdown(task)
@@ -660,7 +674,7 @@
                                         type="button"
                                         disabled="@(_isExecuting || _cancellingScheduledTaskId == task.Id)"
                                         @onclick="() => CancelScheduledTaskAsync(task)">
-                                    @(_cancellingScheduledTaskId == task.Id ? "Cancelling..." : "Cancel task")
+                                    @(_cancellingScheduledTaskId == task.Id ? "Removing..." : ScheduledTaskCancelText(task))
                                 </button>
                             </div>
                             <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
@@ -783,6 +797,11 @@
         {
             await RefreshScheduledTasksAsync();
             await LoadChatsAsync();
+            if (RequestedChatId is Guid chatId)
+            {
+                await SelectChatAsync(chatId);
+            }
+
             StartScheduledTaskTimer();
         }
         catch (Exception ex)
@@ -790,6 +809,16 @@
             _isLoadingChats = false;
             _errorMessage = $"Could not load command history: {ex.Message}";
         }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_isLoadingChats || RequestedChatId is not Guid chatId || _activeChatId == chatId)
+        {
+            return;
+        }
+
+        await SelectChatAsync(chatId);
     }
 
     private async Task SendAsync()
@@ -996,6 +1025,18 @@
 
         try
         {
+            if (IsMessageAutomationTask(task))
+            {
+                var removed = await ScheduledTasks.CancelQueuedTaskAsync(task.Id, "Message automation removed.");
+                if (removed is null)
+                {
+                    _errorMessage = "The scheduled automation was no longer queued.";
+                }
+
+                await RefreshScheduledTasksAsync();
+                return;
+            }
+
             var result = await Executor.ExecuteAsync(
                 new ParsedCommand
                 {
@@ -2008,7 +2049,34 @@
 
     private static string FormatScheduledFor(DateTimeOffset scheduledForUtc)
     {
-        return scheduledForUtc.ToLocalTime().ToString("h:mm tt");
+        return scheduledForUtc.ToLocalTime().ToString("MMM d, h:mm tt");
+    }
+
+    private static string FormatScheduledTaskKind(ScheduledTaskItem task)
+    {
+        if (!IsMessageAutomationTask(task))
+        {
+            return "Restart task";
+        }
+
+        return task.RepeatMode == ScheduledTask.WeeklyRepeatMode
+            ? "Weekly message"
+            : "One-time message";
+    }
+
+    private static string FormatRecipients(IReadOnlyList<string> recipients)
+    {
+        return recipients.Count == 0 ? "No recipients" : string.Join(", ", recipients);
+    }
+
+    private static string ScheduledTaskCancelText(ScheduledTaskItem task)
+    {
+        return IsMessageAutomationTask(task) ? "Remove automation" : "Cancel task";
+    }
+
+    private static bool IsMessageAutomationTask(ScheduledTaskItem task)
+    {
+        return task.TaskType == ScheduledTask.MessageAutomationTaskType;
     }
 
     private static string FormatScheduledCountdown(ScheduledTaskItem task)

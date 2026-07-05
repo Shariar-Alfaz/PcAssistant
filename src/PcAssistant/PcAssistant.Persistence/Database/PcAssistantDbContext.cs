@@ -142,6 +142,22 @@ public sealed class PcAssistantDbContext(DbContextOptions<PcAssistantDbContext> 
             entity.Property(task => task.LastMessage)
                 .HasMaxLength(4000);
 
+            entity.Property(task => task.AppPath)
+                .HasMaxLength(2048);
+
+            entity.Property(task => task.AppDisplayName)
+                .HasMaxLength(160);
+
+            entity.Property(task => task.RecipientNames)
+                .HasMaxLength(4000);
+
+            entity.Property(task => task.MessageText)
+                .HasMaxLength(4000);
+
+            entity.Property(task => task.RepeatMode)
+                .HasMaxLength(32)
+                .IsRequired();
+
             entity.HasIndex(task => new { task.QueueStatus, task.ScheduledForUtc });
 
             entity.HasIndex(task => task.CommandLogId);
