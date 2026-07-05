@@ -3,7 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using PcAssistant.Persistence;
+using PcAssistant.Persistence.Database;
 
 #nullable disable
 
@@ -17,6 +17,29 @@ namespace PcAssistant.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
 
+            modelBuilder.Entity("PcAssistant.Domain.ChatSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedAtUtc");
+
+                    b.ToTable("chat_sessions", (string)null);
+                });
+
             modelBuilder.Entity("PcAssistant.Domain.CommandLogEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -25,6 +48,9 @@ namespace PcAssistant.Persistence.Migrations
                     b.Property<string>("AssistantMessage")
                         .IsRequired()
                         .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChatSessionId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CommandLabel")
@@ -81,9 +107,103 @@ namespace PcAssistant.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ChatSessionId");
+
                     b.HasIndex("CreatedAtUtc");
 
                     b.ToTable("command_logs", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.ScheduledTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ChatSessionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CommandLogId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppDisplayName")
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AppPath")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("CompletedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MessageText")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QueuePosition")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("QueueStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RecipientNames")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RepeatDaysOfWeek")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RepeatMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ScheduledForUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TaskType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommandLogId");
+
+                    b.HasIndex("QueueStatus", "ScheduledForUtc");
+
+                    b.ToTable("scheduled_tasks", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.CommandLogEntry", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.ChatSession", null)
+                        .WithMany("CommandLogs")
+                        .HasForeignKey("ChatSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.ChatSession", b =>
+                {
+                    b.Navigation("CommandLogs");
                 });
 #pragma warning restore 612, 618
         }

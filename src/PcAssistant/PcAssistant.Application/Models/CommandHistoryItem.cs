@@ -2,6 +2,7 @@ namespace PcAssistant.Application.Models;
 
 public sealed record CommandHistoryItem(
     Guid Id,
+    Guid ChatSessionId,
     string UserText,
     string CommandLabel,
     string RawPredictedLabel,

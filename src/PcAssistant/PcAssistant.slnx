@@ -7,6 +7,7 @@
   <Project Path="PcAssistant.Application/PcAssistant.Application.csproj" Id="a1d6d6b0-9496-4557-b5d7-134876d79f78" />
   <Project Path="PcAssistant.Domain/PcAssistant.Domain.csproj" Id="9e24b896-44b1-4765-a8de-181fbcc29a24" />
   <Project Path="PcAssistant.Infrastructure/PcAssistant.Infrastructure.csproj" Id="ff801aa1-c3c7-429f-b1b1-b5096c6dcb80" />
+  <Project Path="PcAssistant.MigrationRunner/PcAssistant.MigrationRunner.csproj" />
   <Project Path="PcAssistant.Persistence/PcAssistant.Persistence.csproj" Id="58ddff6c-ada3-4eca-93ee-c18b482e3dc7" />
   <Project Path="PcAssistant/PcAssistant.csproj" />
 </Solution>

@@ -1,6 +1,6 @@
-using System.Net.Http.Json;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
+using System.Net.Http.Json;
 
 namespace PcAssistant.Infrastructure.Api;
 

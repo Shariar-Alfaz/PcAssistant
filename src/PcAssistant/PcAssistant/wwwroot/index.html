@@ -8,14 +8,27 @@
     <link rel="stylesheet" href="css/tailwind.css" />
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="PcAssistant.styles.css" />
-    <link rel="icon" href="data:,">
+    <link rel="icon" href="images/appicon.png">
 </head>
 
 <body>
 
     <div class="status-bar-safe-area"></div>
 
-    <div id="app">Loading...</div>
+    <div id="app">
+        <main class="flex min-h-screen items-center justify-center bg-[#080b16] px-6 text-center text-[#d9e2f1]">
+            <section class="flex flex-col items-center">
+                <div class="flex flex-col items-center">
+                    <img class="size-16 rounded-2xl border border-white/10 shadow-2xl shadow-black/25" src="images/appicon.png" alt="PcAssistant" />
+                    <span class="mt-4 block h-1 w-24 overflow-hidden rounded-full bg-[#17263c]">
+                        <span class="block h-full w-1/2 animate-pulse rounded-full bg-[#8ec5ff]"></span>
+                    </span>
+                </div>
+                <h1 class="mt-5 text-2xl font-semibold tracking-normal text-white">PcAssistant</h1>
+                <p class="mt-2 text-sm text-[#aab6c9]">Starting your command workspace.</p>
+            </section>
+        </main>
+    </div>
 
     <div id="blazor-error-ui" data-nosnippet>
         An unhandled error has occurred.
@@ -24,6 +37,7 @@
     </div>
 
     <script src="js/assistant-directory-picker.js"></script>
+    <script src="js/automation-picker.js"></script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
 
 </body>

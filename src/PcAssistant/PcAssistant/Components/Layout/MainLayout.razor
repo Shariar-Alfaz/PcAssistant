@@ -1,57 +1,65 @@
 @inherits LayoutComponentBase
+@inject PcAssistant.Application.Abstractions.Services.IAiApiProcessService AiApiProcess
+@implements IAsyncDisposable
 
 <div class="@RootClass">
-    <aside class="fixed inset-y-0 left-0 z-20 hidden w-[19rem] border-r border-slate-200/70 bg-white/[0.86] px-4 py-5 shadow-[20px_0_60px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/[0.82] dark:shadow-black/30 lg:block">
-        <NavMenu />
-    </aside>
-
-    <div class="min-w-0 lg:pl-[19rem]">
-        <header class="sticky top-0 z-10 border-b border-white/70 bg-white/[0.72] px-4 py-3 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/[0.72] sm:px-6 lg:px-8">
-            <div class="mx-auto flex max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div class="lg:hidden">
-                    <NavMenu />
-                </div>
-
-                <div class="hidden lg:block">
-                    <p class="text-xs font-black uppercase tracking-[0.3em] text-cyan-700 dark:text-cyan-300">Windows Assistant</p>
-                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">AI command history, local execution, and safety checks.</p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200">Local-first</span>
-                    <span class="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-3 py-1.5 text-xs font-bold text-fuchsia-700 dark:border-fuchsia-400/25 dark:bg-fuchsia-400/10 dark:text-fuchsia-200">SQLite history</span>
-                    <button class="inline-flex min-h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-100 dark:hover:bg-white/[0.12]"
-                            type="button"
-                            title="@ThemeToggleTitle"
-                            @onclick="ToggleTheme">
-                        <span>@ThemeLabel</span>
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        <main class="min-w-0 overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-            <article class="mx-auto max-w-7xl min-w-0">
-                @Body
-            </article>
-        </main>
-    </div>
+    <NavMenu />
+    <main class="min-h-0 min-w-0 overflow-hidden">
+        @Body
+    </main>
 </div>
 
+@if (_isStartingAiApi)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-[#080b16] px-6 text-center text-[#d9e2f1]">
+        <section class="flex flex-col items-center">
+            <div class="flex flex-col items-center">
+                <img class="size-16 rounded-2xl border border-white/10 shadow-2xl shadow-black/25" src="images/appicon.png" alt="PcAssistant" />
+                <span class="mt-4 block h-1 w-24 overflow-hidden rounded-full bg-[#17263c]">
+                    <span class="block h-full w-1/2 animate-pulse rounded-full bg-[#8ec5ff]"></span>
+                </span>
+            </div>
+            <h1 class="mt-5 text-2xl font-semibold tracking-normal text-white">PcAssistant</h1>
+            <p class="mt-2 text-sm text-[#aab6c9]">Starting AI service.</p>
+        </section>
+    </div>
+}
+
 @code {
-    private bool _isDarkMode;
+    private const string RootClass = "grid h-screen min-h-0 grid-cols-[auto_minmax(0,1fr)] overflow-hidden bg-[#080b16] text-slate-950";
+    private bool _isStartingAiApi = true;
+    private bool _hasStartedAiApi;
 
-    private string RootClass =>
-        _isDarkMode
-            ? "dark min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.14),transparent_30rem),radial-gradient(circle_at_92%_12%,rgba(217,70,239,0.12),transparent_26rem),linear-gradient(135deg,#020617_0%,#0f172a_48%,#111827_100%)] text-slate-100"
-            : "min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(6,182,212,0.16),transparent_30rem),radial-gradient(circle_at_92%_12%,rgba(217,70,239,0.12),transparent_26rem),linear-gradient(135deg,#f8fafc_0%,#eef6f9_48%,#f8f1ff_100%)] text-slate-950";
-
-    private string ThemeLabel => _isDarkMode ? "Dark" : "Light";
-
-    private string ThemeToggleTitle => _isDarkMode ? "Switch to light mode" : "Switch to dark mode";
-
-    private void ToggleTheme()
+    protected override void OnAfterRender(bool firstRender)
     {
-        _isDarkMode = !_isDarkMode;
+        if (!firstRender || _hasStartedAiApi)
+        {
+            return;
+        }
+
+        _hasStartedAiApi = true;
+        _ = StartAiApiAsync();
+    }
+
+    private async Task StartAiApiAsync()
+    {
+        try
+        {
+            await AiApiProcess.StartAsync();
+        }
+        catch
+        {
+            // Keep the UI available even if the bundled API cannot start.
+        }
+        finally
+        {
+            _isStartingAiApi = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await AiApiProcess.StopAsync();
     }
 }

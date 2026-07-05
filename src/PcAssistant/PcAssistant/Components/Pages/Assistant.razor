@@ -1,114 +1,132 @@
-@page "/assistant"
+﻿@page "/assistant"
+@page "/"
 @inject ICommandAiClient AiClient
 @inject ICommandParserService Parser
 @inject IWindowsCommandExecutor Executor
 @inject ICommandHistoryService CommandHistory
 @inject IDirectorySuggestionService DirectorySuggestions
+@inject ILocationPickerService LocationPicker
 @inject ICommandSafetyValidator SafetyValidator
+@inject IScheduledTaskService ScheduledTasks
 @inject IJSRuntime JsRuntime
+@using PcAssistant.Application.Abstractions.Services
+@using PcAssistant.Domain.Entity
 @implements IDisposable
 
 <PageTitle>Assistant</PageTitle>
 
-<section class="min-w-0 space-y-5 text-slate-950 dark:text-slate-100">
-    <div class="flex min-w-0 flex-col gap-5">
-        <header class="overflow-hidden rounded-[2rem] border border-white/80 bg-white/[0.82] p-6 shadow-xl shadow-slate-900/[0.08] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08] dark:shadow-black/20">
-            <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div>
-                    <p class="text-sm font-semibold tracking-wide text-cyan-700 uppercase dark:text-cyan-300">Local PC Assistant</p>
-                    <h1 class="mt-1 text-3xl font-black text-slate-950 dark:text-white">Command Center</h1>
-                    <p class="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-                        Ask for safe local actions like creating folders, deleting folders with confirmation, or scheduling a restart.
-                    </p>
-                </div>
-                <div class="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200">
-                    FastAPI: http://127.0.0.1:8000
-                </div>
+<section class="@ShellClass">
+    <aside class="@SidebarClass">
+        <div class="flex items-center justify-between px-2">
+            <a class="@SidebarBrandClass" href="">PcAssistant</a>
+            <button class="flex size-8 items-center justify-center rounded-lg text-[#c9d2e3] transition hover:bg-white/10"
+                    type="button"
+                    title="@SidebarToggleTitle"
+                    @onclick="ToggleSidebar">
+                <svg class="@SidebarToggleIconClass" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 5h14v14H5V5Zm5 0v14" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                </svg>
+            </button>
+        </div>
+
+        <nav class="mt-7 space-y-2">
+            <button class="copilot-nav-item w-full"
+                    type="button"
+                    @onclick="NewChatAsync">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 14H5.17L4 17.17V4h16v12Zm-9-2h2v-3h3V9h-3V6h-2v3H8v2h3v3Z" />
+                </svg>
+                <span class="@SidebarTextClass">New chat</span>
+            </button>
+            <a class="copilot-nav-item w-full"
+               href="automation">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M7 4.5v3m10-3v3M5.5 10h13M6 6h12a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 18 19H6a1.5 1.5 0 0 1-1.5-1.5v-10A1.5 1.5 0 0 1 6 6Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="m9 14 2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="@SidebarTextClass">Automation</span>
+            </a>
+        </nav>
+
+        <div class="@SidebarFullOnlyClass">
+            <div class="mt-5 h-px bg-white/18"></div>
+
+            <div class="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+                @if (_isLoadingChats)
+                {
+                    <p class="px-2 py-2 text-sm text-[#9da8ba]">Loading chats...</p>
+                }
+                else if (_chats.Count == 0)
+                {
+                    <p class="px-2 py-2 text-sm text-[#9da8ba]">No chats yet.</p>
+                }
+                else
+                {
+                    @foreach (var chat in _chats)
+                    {
+                        <div class="@ChatRowClass(chat.Id)">
+                            <button class="min-w-0 flex-1 truncate text-left"
+                                    type="button"
+                                    title="@chat.Title"
+                                    @onclick="() => SelectChatAsync(chat.Id)">
+                                @chat.Title
+                            </button>
+                            <button class="flex size-7 shrink-0 items-center justify-center rounded-md text-[#9da8ba] opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-rose-200"
+                                    type="button"
+                                    title="Delete chat"
+                                    @onclick="() => RequestDeleteChat(chat.Id)">
+                                <svg class="size-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M6 7h12m-9 0V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m-7 0 .7 12h6.6L16 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </button>
+                        </div>
+                    }
+                }
             </div>
-        </header>
+        </div>
 
-        <div class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <section class="min-w-0 overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/[0.92] shadow-xl shadow-slate-900/[0.08] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/20">
-                <div class="flex min-h-[36rem] min-w-0 flex-col">
-                <div class="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
-                    @if (_history.Count == 0)
-                    {
-                        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600 dark:border-white/15 dark:bg-white/[0.06] dark:text-slate-300">
-                            Try: <span class="font-medium text-slate-900 dark:text-white">create a folder named Reports in downloads</span>
-                        </div>
-                    }
+        <div class="@SidebarProfileClass">
+            <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#33415f] text-sm font-semibold text-white">S</span>
+            <span class="@SidebarProfileTextClass">
+                <span class="block truncate text-sm font-semibold text-white">Shariar</span>
+                <span class="block truncate text-xs text-[#a8b2c4]">Local assistant</span>
+            </span>
+        </div>
+    </aside>
 
-                    @foreach (var item in _history)
-                    {
-                        <div class="flex justify-end">
-                            <div class="max-w-[85%] overflow-hidden rounded-2xl rounded-br-md bg-slate-950 px-4 py-3 text-sm text-white shadow-sm dark:bg-cyan-300 dark:text-slate-950 [overflow-wrap:anywhere]">
-                                @item.UserText
-                            </div>
-                        </div>
+    <main class="relative h-screen min-h-0 min-w-0 overflow-hidden bg-[radial-gradient(circle_at_44%_68%,rgba(210,213,207,0.75),transparent_0.15rem),radial-gradient(circle_at_39%_72%,rgba(249,250,244,0.85),transparent_0.18rem),radial-gradient(circle_at_48%_78%,rgba(236,238,232,0.75),transparent_0.12rem),linear-gradient(180deg,#00466c_0%,#06475f_22%,#7a8d91_53%,#062536_76%,#020812_100%)]">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_35%_72%,rgba(255,255,255,0.28),transparent_0.18rem),radial-gradient(circle_at_34.5%_72.4%,rgba(244,179,69,0.8),transparent_0.09rem),radial-gradient(circle_at_79%_61%,rgba(255,255,255,0.22),transparent_0.16rem),linear-gradient(110deg,transparent_0%,rgba(0,0,0,0.18)_62%,rgba(0,0,0,0.62)_100%)]"></div>
+        <div class="relative z-10 flex h-screen min-h-0 flex-col px-5 py-4 sm:px-8">
+            @if (_isLoadingChats)
+            {
+                <section class="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center text-center">
+                    <div class="flex size-16 items-center justify-center rounded-2xl border border-white/10 bg-[#121c31]/90 shadow-2xl shadow-black/20">
+                        <span class="size-7 animate-spin rounded-full border-2 border-[#8ec5ff]/25 border-t-[#dce9ff]"></span>
+                    </div>
+                    <h1 class="mt-5 text-2xl font-semibold tracking-normal text-white">Loading PcAssistant</h1>
+                    <p class="mt-2 text-sm leading-6 text-[#aab6c9]">Preparing command history and scheduled tasks.</p>
+                </section>
+            }
+            else if (_history.Count == 0 && !_isLoadingSelectedChat)
+            {
+                <section class="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center pt-12 text-center">
+                    <h1 class="text-3xl font-semibold tracking-normal text-white sm:text-4xl">Nice to see you, Shariar. What's new?</h1>
+                    @ScheduledTaskQueuePanel()
 
-                        <div class="flex justify-start">
-                            <div class="max-w-[92%] min-w-0 overflow-hidden rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-200">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span class="font-semibold text-slate-950 dark:text-white">@item.CommandLabel</span>
-                                    <span class="@ConfidenceClass(item.Confidence)">
-                                        @FormatConfidence(item.Confidence)
-                                    </span>
-                                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                                        @item.Source
-                                    </span>
-                                </div>
-                                <p class="mt-3 [overflow-wrap:anywhere]">@item.AssistantMessage</p>
-                                @if (!string.IsNullOrWhiteSpace(item.ResolvedPath))
-                                {
-                                    <p class="mt-3 max-w-full rounded-xl bg-slate-50 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap text-slate-700 dark:bg-slate-950/70 dark:text-slate-200 [overflow-wrap:anywhere]">@item.ResolvedPath</p>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(item.ExecutionMessage))
-                                {
-                                    <p class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-200 [overflow-wrap:anywhere]">
-                                        @item.ExecutionStatus: @item.ExecutionMessage
-                                    </p>
-                                }
-                            </div>
-                        </div>
-                    }
-                </div>
+                    <div class="mt-9 w-full max-w-[46.5rem] rounded-[1.85rem] border border-[#263653] bg-[#121c31] p-4 text-left ring-2 shadow-[0_22px_65px_rgba(0,0,0,0.28)] ring-[#22314d]">
+                        <div class="relative min-w-0">
+                            @ComposerInput("text-base", "Message PcAssistant")
+                            @if (HasInlinePath(_input))
+                            {
+                                <p class="mt-2 text-sm leading-6 text-[#aab6c9]">
+                                    @HighlightCommandPaths(_input)
+                                </p>
+                            }
 
-                <div class="border-t border-slate-200 bg-white/[0.72] p-4 backdrop-blur sm:p-5 dark:border-white/10 dark:bg-slate-950/[0.72]">
-                    <div class="flex flex-col gap-3 sm:flex-row">
-                        <div class="relative min-w-0 flex-1">
-                            <div class="flex min-h-12 w-full flex-wrap items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-950 shadow-sm transition focus-within:border-cyan-400 focus-within:ring-4 focus-within:ring-cyan-100 dark:border-white/10 dark:bg-white/[0.08] dark:text-white dark:focus-within:ring-cyan-300/15">
-                                @for (var chipIndex = 0; chipIndex < _selectedDirectories.Count; chipIndex++)
-                                {
-                                    var currentChipIndex = chipIndex;
-                                    var selectedDirectory = _selectedDirectories[chipIndex];
-                                    <span class="flex max-w-[38%] shrink-0 items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-2 py-1 text-cyan-950 dark:border-cyan-300/20 dark:bg-cyan-300/[0.14] dark:text-cyan-100">
-                                        <span class="@DirectoryChipIconClass(selectedDirectory.Kind)" aria-hidden="true">
-                                            @DirectoryIcon(selectedDirectory.Kind)
-                                        </span>
-                                        <span class="min-w-0">
-                                            <span class="block truncate leading-4 font-black text-[0.72rem]">@selectedDirectory.DisplayName</span>
-                                        </span>
-                                        <button class="flex size-4 shrink-0 items-center justify-center rounded-full text-[0.65rem] text-cyan-700 transition hover:bg-cyan-100 dark:text-cyan-100 dark:hover:bg-cyan-300/20"
-                                                type="button"
-                                                title="Remove this directory"
-                                                @onclick="() => RemoveSelectedDirectory(currentChipIndex)">
-                                            x
-                                        </button>
-                                    </span>
-                                }
-                                <input id="@CommandInputId"
-                                       class="min-h-8 min-w-0 flex-1 bg-transparent text-sm text-slate-950 outline-none placeholder:text-slate-400 disabled:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
-                                       placeholder="@CommandInputPlaceholder"
-                                       value="@_input"
-                                       @oninput="OnCommandInputAsync"
-                                       disabled="@_isBusy" />
-                            </div>
                             @if (ShowDirectorySuggestions)
                             {
-                                <div class="absolute right-0 bottom-full left-0 z-30 mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20 dark:border-white/10 dark:bg-slate-950">
-                                    <div class="border-b border-slate-100 px-3 py-2 text-xs font-bold tracking-[0.18em] text-slate-500 uppercase dark:border-white/10 dark:text-slate-400">
-                                        @_directorySuggestionTitle
-                                    </div>
+                                <div class="absolute top-full right-0 left-0 z-30 mt-3 overflow-hidden rounded-2xl border border-white/10 bg-[#111b2e] shadow-2xl shadow-black/40">
+                                    <div class="border-b border-white/10 px-3 py-2 text-xs font-semibold text-[#aab6c9]">@_directorySuggestionTitle</div>
                                     <div class="max-h-64 overflow-y-auto p-1">
                                         @for (var index = 0; index < _directorySuggestions.Count; index++)
                                         {
@@ -119,31 +137,10 @@
                                                     @onmousedown:preventDefault
                                                     @onclick="() => SelectDirectorySuggestionAsync(suggestionIndex)">
                                                 <span class="flex min-w-0 items-start gap-2">
-                                                    <span class="@DirectorySuggestionIconClass(suggestion.Kind)" aria-hidden="true">
-                                                        @if (suggestion.Kind == "drive")
-                                                        {
-                                                            <svg viewBox="0 0 24 24" fill="none">
-                                                                <path d="M5 5.5h14l2 7v5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-5l2-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                                                                <path d="M3 12.5h18M7 16h.01M10 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                                                            </svg>
-                                                        }
-                                                        else if (suggestion.Kind == "known-folder")
-                                                        {
-                                                            <svg viewBox="0 0 24 24" fill="none">
-                                                                <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v6A2.5 2.5 0 0 1 18 18.5H6A2.5 2.5 0 0 1 3.5 16v-8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                                                                <path d="m12 11 .75 1.55 1.7.25-1.22 1.2.28 1.68L12 14.88l-1.51.8.28-1.68-1.22-1.2 1.7-.25L12 11Z" fill="currentColor" />
-                                                            </svg>
-                                                        }
-                                                        else
-                                                        {
-                                                            <svg viewBox="0 0 24 24" fill="none">
-                                                                <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v6A2.5 2.5 0 0 1 18 18.5H6A2.5 2.5 0 0 1 3.5 16v-8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                                                            </svg>
-                                                        }
-                                                    </span>
+                                                    <span class="@DirectorySuggestionIconClass(suggestion.Kind)" aria-hidden="true">@DirectoryIcon(suggestion.Kind)</span>
                                                     <span class="min-w-0">
                                                         <span class="block truncate text-xs font-bold">@suggestion.DisplayName</span>
-                                                        <span class="block truncate font-mono text-[0.68rem] opacity-75">@suggestion.Path</span>
+                                                        <span class="block truncate font-mono text-[0.68rem] opacity-75">@DirectorySuggestionPathText(suggestion)</span>
                                                     </span>
                                                 </span>
                                             </button>
@@ -152,104 +149,247 @@
                                 </div>
                             }
                         </div>
-                        <button class="min-h-12 rounded-2xl bg-slate-950 px-6 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200 dark:disabled:bg-white/10 dark:disabled:text-slate-500"
-                                disabled="@IsSendDisabled"
-                                @onclick="SendAsync">
-                            @(_isBusy ? "Thinking..." : "Send")
-                        </button>
+
+                        <div class="mt-3 flex justify-end">
+                            <button class="rounded-full bg-[#d6dfef] px-4 py-2 text-sm font-semibold text-[#101827] transition hover:bg-white disabled:cursor-not-allowed disabled:bg-[#41506d] disabled:text-[#aab6c9]"
+                                    type="button"
+                                    disabled="@IsSendDisabled"
+                                    @onclick="SendAsync">
+                                @(_isBusy ? "Thinking..." : "Send")
+                            </button>
+                        </div>
                     </div>
-                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
-                    {
-                        <p class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">@_errorMessage</p>
-                    }
-                </div>
-                </div>
-            </section>
-
-            <aside class="min-w-0 space-y-5">
-                <section class="min-w-0 rounded-[1.75rem] border border-white/70 bg-white/[0.86] p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.08]">
-                    <h2 class="text-base font-semibold text-slate-950 dark:text-white">Prediction</h2>
-                    @if (_lastResponse is null)
-                    {
-                        <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">No command has been analyzed yet.</p>
-                    }
-                    else
-                    {
-                        <dl class="mt-4 space-y-3 text-sm">
-                            <div>
-                                <dt class="text-slate-500 dark:text-slate-400">Command label</dt>
-                                <dd class="mt-1 font-semibold text-slate-950 dark:text-white [overflow-wrap:anywhere]">@_effectiveLabel</dd>
-                            </div>
-                            <div>
-                                <dt class="text-slate-500 dark:text-slate-400">Raw label</dt>
-                                <dd class="mt-1 font-mono text-xs text-slate-700 dark:text-slate-200 [overflow-wrap:anywhere]">@_lastResponse.RawPredictedLabel</dd>
-                            </div>
-                            <div>
-                                <dt class="text-slate-500 dark:text-slate-400">Confidence</dt>
-                                <dd class="mt-1"><span class="@ConfidenceClass(_lastResponse.Confidence)">@FormatConfidence(_lastResponse.Confidence)</span></dd>
-                            </div>
-                        </dl>
-                    }
                 </section>
+            }
+            else
+            {
+                <section class="mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-hidden py-8">
+                    <div class="mb-5 flex items-center justify-between">
+                        <h1 class="truncate text-xl font-semibold text-white">@ActiveChatTitle</h1>
+                        <span class="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">Protected execution</span>
+                    </div>
+                    @ScheduledTaskQueuePanel()
 
-                @if (_pendingCommand is not null)
-                {
-                    <section class="@PanelClass">
-                        <h2 class="text-base font-semibold">@PanelTitle</h2>
-                        <p class="mt-3 text-sm leading-6 [overflow-wrap:anywhere]">@PanelMessage</p>
-
-                        @if (CanEditPendingPath)
+                    <div @ref="_messageListElement"
+                         class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-2"
+                         @onscroll="OnMessageListScrollAsync">
+                        @if (_isLoadingSelectedChat)
                         {
-                            <label class="mt-4 block text-xs font-bold tracking-[0.16em] uppercase opacity-75" for="pending-path">
-                                Target path
-                            </label>
-                            <input id="pending-path"
-                                   class="mt-2 min-h-11 w-full rounded-xl border border-slate-300 bg-white/80 px-3 font-mono text-xs text-slate-950 transition outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100 dark:border-white/10 dark:bg-slate-950/50 dark:text-white dark:focus:ring-cyan-300/15"
-                                   value="@_pendingPathText"
-                                   @oninput="OnPendingPathInput"
-                                   disabled="@_isExecuting" />
-                            @if (!string.IsNullOrWhiteSpace(_pendingPathError))
+                            @ChatHistorySkeleton()
+                        }
+                        else
+                        {
+                            @if (_isLoadingOlderMessages)
                             {
-                                <p class="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-200">@_pendingPathError</p>
+                                @OlderMessagesSkeleton()
+                            }
+
+                            @foreach (var item in _history)
+                            {
+                                @ChatHistoryTurn(item)
                             }
                         }
+                    </div>
 
-                        @if (!string.IsNullOrWhiteSpace(_pendingCommand.ResolvedPath))
-                        {
-                            <p class="mt-4 max-w-full rounded-xl bg-white/70 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap text-slate-700 dark:bg-slate-950/50 dark:text-slate-100 [overflow-wrap:anywhere]">@_pendingCommand.ResolvedPath</p>
-                        }
+                    @if (_pendingCommand is not null)
+                    {
+                        <section class="@PanelClass">
+                            <h2 class="text-base font-semibold">@PanelTitle</h2>
+                            <p class="mt-3 text-sm leading-6 [overflow-wrap:anywhere]">@PanelMessage</p>
 
-                        @if (CanExecutePendingCommand)
-                        {
-                            <div class="mt-4 flex gap-3">
-                                <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-300 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 dark:disabled:bg-white/20 dark:disabled:text-slate-500"
-                                        disabled="@_isExecuting"
-                                        @onclick="ConfirmAsync">
-                                    @(_isExecuting ? "Running..." : "Confirm")
-                                </button>
-                                <button class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.08] dark:text-slate-100 dark:hover:bg-white/[0.12]"
-                                        disabled="@_isExecuting"
-                                        @onclick="CancelPending">
-                                    Cancel
-                                </button>
+                            @if (CanEditPendingPath)
+                            {
+                                <label class="mt-4 block text-xs font-bold tracking-[0.16em] uppercase opacity-75" for="pending-path">Target path</label>
+                                <input id="pending-path"
+                                       class="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 font-mono text-xs text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                                       value="@_pendingPathText"
+                                       @oninput="OnPendingPathInput"
+                                       disabled="@_isExecuting" />
+                            }
+
+                            @if (CanEditPendingRestart)
+                            {
+                                <div class="mt-4 max-w-xs">
+                                    <label class="block text-xs font-bold tracking-[0.16em] uppercase opacity-75" for="pending-restart-delay">Restart delay</label>
+                                    <div class="mt-2 flex items-center gap-2">
+                                        <input id="pending-restart-delay"
+                                               class="min-h-11 w-28 rounded-xl border border-white/10 bg-black/20 px-3 text-sm font-semibold text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                                               type="number"
+                                               min="1"
+                                               max="86400"
+                                               step="1"
+                                               value="@_pendingRestartDelaySeconds"
+                                               @oninput="OnPendingRestartDelayInput"
+                                               disabled="@_isExecuting" />
+                                        <span class="text-sm font-semibold opacity-80">seconds</span>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (CanExecutePendingCommand)
+                            {
+                                <div class="mt-4 flex gap-3">
+                                    <button class="rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:bg-white/20 disabled:text-[#aab6c9]"
+                                            disabled="@_isExecuting"
+                                            @onclick="RequestCommandConfirmation">@(_isExecuting ? "Running..." : "Confirm")</button>
+                                    <button class="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
+                                            disabled="@_isExecuting"
+                                            @onclick="CancelPending">Cancel</button>
+                                </div>
+                            }
+                        </section>
+                    }
+
+                    <div class="mt-5 rounded-[1.5rem] border border-[#263653] bg-[#121c31] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.24)]">
+                        <div class="flex flex-col gap-3 sm:flex-row">
+                            <div class="relative min-w-0 flex-1">
+                                @ComposerInput("text-sm", CommandInputPlaceholder)
+                                @if (HasInlinePath(_input))
+                                {
+                                    <p class="mt-2 text-sm leading-6 text-[#aab6c9]">
+                                        @HighlightCommandPaths(_input)
+                                    </p>
+                                }
+                                @if (ShowDirectorySuggestions)
+                                {
+                                    <div class="absolute right-0 bottom-full left-0 z-30 mb-2 overflow-hidden rounded-2xl border border-white/10 bg-[#111b2e] shadow-2xl shadow-black/40">
+                                        <div class="border-b border-white/10 px-3 py-2 text-xs font-semibold text-[#aab6c9]">@_directorySuggestionTitle</div>
+                                        <div class="max-h-64 overflow-y-auto p-1">
+                                            @for (var index = 0; index < _directorySuggestions.Count; index++)
+                                            {
+                                                var suggestionIndex = index;
+                                                var suggestion = _directorySuggestions[index];
+                                                <button class="@DirectorySuggestionClass(index)"
+                                                        type="button"
+                                                        @onmousedown:preventDefault
+                                                        @onclick="() => SelectDirectorySuggestionAsync(suggestionIndex)">
+                                                    <span class="flex min-w-0 items-start gap-2">
+                                                        <span class="@DirectorySuggestionIconClass(suggestion.Kind)" aria-hidden="true">@DirectoryIcon(suggestion.Kind)</span>
+                                                        <span class="min-w-0">
+                                                            <span class="block truncate text-xs font-bold">@suggestion.DisplayName</span>
+                                                            <span class="block truncate font-mono text-[0.68rem] opacity-75">@DirectorySuggestionPathText(suggestion)</span>
+                                                        </span>
+                                                    </span>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                        }
-                    </section>
-                }
-            </aside>
+                            <button class="min-h-12 rounded-2xl bg-[#dce9ff] px-6 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:cursor-not-allowed disabled:bg-[#41506d] disabled:text-[#aab6c9]"
+                                    disabled="@IsSendDisabled"
+                                    @onclick="SendAsync">@(_isBusy ? "Thinking..." : "Send")</button>
+                        </div>
+                    </div>
+                </section>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <p class="absolute right-6 bottom-6 left-6 z-20 rounded-xl border border-rose-300/20 bg-rose-950/80 px-3 py-2 text-sm text-rose-100">@_errorMessage</p>
+            }
         </div>
-    </div>
+    </main>
+
+    @if (_chatPendingDeletion is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+            <section class="w-full max-w-md rounded-[1.5rem] border border-white/10 bg-[#101827] p-5 text-[#d9e2f1] shadow-2xl shadow-black/40">
+                <div class="flex items-start gap-3">
+                    <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-400/15 text-rose-200">
+                        <svg class="size-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M6 7h12m-9 0V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m-7 0 .7 12h6.6L16 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-semibold text-white">Delete chat history?</h2>
+                        <p class="mt-2 text-sm leading-6 text-[#aab6c9]">
+                            This will remove <span class="font-semibold text-white">@_chatPendingDeletion.Title</span> and its saved messages from this device.
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-5 flex justify-end gap-3">
+                    <button class="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                            type="button"
+                            disabled="@_isDeletingChat"
+                            @onclick="CancelDeleteChat">
+                        Cancel
+                    </button>
+                    <button class="rounded-xl bg-rose-400 px-4 py-2 text-sm font-semibold text-[#21080d] transition hover:bg-rose-300 disabled:bg-rose-400/40"
+                            type="button"
+                            disabled="@_isDeletingChat"
+                            @onclick="ConfirmDeleteChatAsync">
+                        @(_isDeletingChat ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (_showCommandConfirmationModal && _pendingCommand is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+            <section class="w-full max-w-lg rounded-[1.5rem] border border-white/10 bg-[#101827] p-5 text-[#d9e2f1] shadow-2xl shadow-black/40">
+                <div class="flex items-start gap-3">
+                    <span class="@CommandConfirmationIconClass">
+                        <svg class="size-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 9v4m0 4h.01M10.3 4.7 2.9 17.5A1.7 1.7 0 0 0 4.4 20h15.2a1.7 1.7 0 0 0 1.5-2.5L13.7 4.7a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-semibold text-white">@CommandConfirmationTitle</h2>
+                        <p class="mt-2 text-sm leading-6 text-[#aab6c9]">@CommandConfirmationMessage</p>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_pendingCommand.ResolvedPath))
+                {
+                    <p class="mt-4 max-w-full rounded-xl bg-black/30 px-3 py-2 font-mono text-xs leading-5 text-[#d9e2f1] [overflow-wrap:anywhere]">
+                        @_pendingCommand.ResolvedPath
+                    </p>
+                }
+
+                <div class="mt-5 flex justify-end gap-3">
+                    <button class="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                            type="button"
+                            disabled="@_isExecuting"
+                            @onclick="CancelCommandConfirmation">
+                        Cancel
+                    </button>
+                    <button class="@CommandConfirmationButtonClass"
+                            type="button"
+                            disabled="@_isExecuting"
+                            @onclick="ConfirmCommandFromModalAsync">
+                        @(_isExecuting ? "Running..." : CommandConfirmationButtonText)
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
 </section>
 
 @code {
     private const string CommandInputId = "assistant-command-input";
+    private const string PickLocationKind = "action-pick-location";
+    private const int ChatMessagePageSize = 30;
+    private static readonly TimeSpan RestartScheduleDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MaximumRestartScheduleDelay = TimeSpan.FromHours(24);
 
     private readonly List<AssistantHistoryItem> _history = new();
+    private readonly List<ChatSessionSummary> _chats = new();
+    private readonly List<ScheduledTaskItem> _scheduledTasks = new();
     private readonly List<DirectorySuggestion> _directorySuggestions = new();
     private readonly List<DirectorySuggestion> _selectedDirectories = new();
+    private static readonly DirectorySuggestion PickLocationSuggestion = new(string.Empty, "Pick a location", PickLocationKind);
+    private static readonly System.Text.RegularExpressions.Regex InlinePathRegex = new(
+        @"(?<path>[A-Za-z]:[\\/][^\s,;]*)",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private string _input = string.Empty;
+    private string _pathTailInput = string.Empty;
     private string _pendingPathText = string.Empty;
     private string? _pendingPathError;
+    private int _pendingRestartDelaySeconds = (int)RestartScheduleDelay.TotalSeconds;
     private bool _isBusy;
     private bool _isExecuting;
     private string? _errorMessage;
@@ -260,14 +400,301 @@
     private bool _lowConfidenceRequiresConfirmation;
     private int _selectedDirectoryIndex = -1;
     private bool _showDirectorySuggestions;
+    private bool _isLoadingChats = true;
+    private bool _isDeletingChat;
+    private bool _showCommandConfirmationModal;
+    private bool _isSidebarCollapsed;
+    private bool _focusCommandInputAfterRender;
+    private bool _isRefreshingScheduledTasks;
+    private bool _isLoadingSelectedChat;
+    private bool _isLoadingOlderMessages;
+    private bool _hasOlderMessages;
+    private bool _scrollMessagesToBottomAfterRender;
+    private bool _restoreOlderMessageScrollAfterRender;
+    private Guid? _activeChatId;
+    private Guid? _loadingChatId;
+    private Guid? _cancellingScheduledTaskId;
+    private DateTimeOffset? _oldestLoadedMessageCreatedAtUtc;
+    private double _olderMessageScrollHeightBeforeLoad;
+    private ChatSessionSummary? _chatPendingDeletion;
     private string _directorySuggestionTitle = "Directories";
+    private ElementReference _messageListElement;
     private DotNetObjectReference<Assistant>? _directoryPickerReference;
+    private System.Threading.Timer? _scheduledTaskTimer;
+
+    [SupplyParameterFromQuery(Name = "chatId")]
+    public Guid? RequestedChatId { get; set; }
 
     private bool IsSendDisabled => _isBusy || string.IsNullOrWhiteSpace(BuildCommandText());
+
+    private string ShellClass => "h-screen min-w-0 bg-[#080b16] text-[#d9e2f1]";
+
+    private string SidebarClass => "hidden";
+
+    private string SidebarBrandClass => _isSidebarCollapsed
+        ? "pointer-events-none w-0 overflow-hidden whitespace-nowrap text-lg font-semibold tracking-normal text-white opacity-0"
+        : "text-lg font-semibold tracking-normal text-white";
+
+    private string SidebarTextClass => _isSidebarCollapsed
+        ? "w-0 overflow-hidden whitespace-nowrap opacity-0"
+        : "min-w-0 truncate opacity-100";
+
+    private string SidebarFullOnlyClass => _isSidebarCollapsed
+        ? "hidden"
+        : "flex min-h-0 flex-1 flex-col";
+
+    private string SidebarProfileClass => _isSidebarCollapsed
+        ? "mt-auto flex items-center justify-center rounded-2xl px-2 py-2"
+        : "mt-4 flex items-center gap-3 rounded-2xl px-2 py-2";
+
+    private string SidebarProfileTextClass => _isSidebarCollapsed
+        ? "hidden"
+        : "min-w-0 flex-1";
+
+    private string SidebarToggleTitle => _isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
+
+    private string SidebarToggleIconClass => _isSidebarCollapsed
+        ? "size-5 rotate-180 transition-transform duration-300"
+        : "size-5 transition-transform duration-300";
+
+    private string ActiveChatTitle =>
+        _activeChatId is Guid activeChatId
+            ? _chats.FirstOrDefault(chat => chat.Id == activeChatId)?.Title ?? "PcAssistant"
+            : "PcAssistant";
 
     private string CommandInputPlaceholder => _selectedDirectories.Count == 0
         ? "Type a PC command... use @dir:"
         : "Continue command... use @folder:";
+
+    private RenderFragment ComposerInput(string textSize, string placeholder) => @<div class="flex min-h-12 w-full flex-wrap items-center gap-1.5 rounded-2xl bg-transparent @textSize text-white">
+        @if (_selectedDirectories.Count == 0)
+        {
+            <input id="@CommandInputId"
+                   class="@CommandInputClass(textSize)"
+                   placeholder="@placeholder"
+                   value="@_input"
+                   @oninput="OnCommandInputAsync"
+                   disabled="@_isBusy" />
+        }
+        else
+        {
+            @if (!string.IsNullOrWhiteSpace(_input))
+            {
+                <span class="shrink-0 font-semibold text-white">@_input</span>
+            }
+
+            @for (var chipIndex = 0; chipIndex < _selectedDirectories.Count; chipIndex++)
+            {
+                var currentChipIndex = chipIndex;
+                var selectedDirectory = _selectedDirectories[chipIndex];
+                if (chipIndex > 0)
+                {
+                    <span class="flex size-5 shrink-0 items-center justify-center text-[#8fa1bc]" aria-hidden="true">
+                        @ChevronRightIcon()
+                    </span>
+                }
+
+                <span class="inline-flex max-w-[14rem] shrink-0 items-center gap-1.5 rounded-lg border border-[#476487] bg-[#26364f] px-2 py-1 text-[#d7e7ff]">
+                    <span class="@DirectoryChipIconClass(selectedDirectory.Kind)" aria-hidden="true">@DirectoryIcon(selectedDirectory.Kind)</span>
+                    <span class="truncate text-xs font-semibold">@selectedDirectory.DisplayName</span>
+                    <button class="flex size-5 shrink-0 items-center justify-center rounded-full text-[#d7e7ff] transition hover:bg-white/12 hover:text-white"
+                            type="button"
+                            title="Remove this directory"
+                            @onclick="() => RemoveSelectedDirectory(currentChipIndex)">
+                        @CloseIcon()
+                    </button>
+                </span>
+            }
+
+            <input id="@CommandInputId"
+                   class="min-h-8 min-w-[6rem] flex-1 bg-transparent text-white outline-none placeholder:text-[#8995ad] disabled:text-[#8995ad]"
+                   placeholder="@placeholder"
+                   value="@_pathTailInput"
+                   @oninput="OnPathTailInputAsync"
+                   disabled="@_isBusy" />
+        }
+    </div>;
+
+    private RenderFragment ChatHistorySkeleton() => @<div class="space-y-5">
+        @for (var skeletonIndex = 0; skeletonIndex < 3; skeletonIndex++)
+        {
+            <div class="flex justify-end">
+                <div class="h-11 w-[58%] max-w-[32rem] animate-pulse rounded-[1.25rem] rounded-br-md bg-[#dce9ff]/35"></div>
+            </div>
+            <div class="flex justify-start">
+                <div class="w-[88%] max-w-[42rem] rounded-[1.25rem] rounded-bl-md border border-white/10 bg-[#17253a]/95 p-4 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="space-y-2">
+                            <div class="h-3 w-28 animate-pulse rounded-full bg-white/10"></div>
+                            <div class="h-4 w-40 animate-pulse rounded-full bg-white/15"></div>
+                        </div>
+                        <div class="h-6 w-20 animate-pulse rounded-full bg-white/10"></div>
+                    </div>
+                    <div class="mt-4 space-y-2">
+                        <div class="h-3 w-full animate-pulse rounded-full bg-white/10"></div>
+                        <div class="h-3 w-4/5 animate-pulse rounded-full bg-white/10"></div>
+                    </div>
+                    <div class="mt-4 h-14 animate-pulse rounded-xl bg-black/20"></div>
+                </div>
+            </div>
+        }
+    </div>;
+
+    private RenderFragment OlderMessagesSkeleton() => @<div class="space-y-3">
+        <div class="mx-auto h-8 w-40 animate-pulse rounded-full bg-white/10"></div>
+        <div class="flex justify-start">
+            <div class="h-20 w-[72%] animate-pulse rounded-[1.25rem] rounded-bl-md bg-[#17253a]/75"></div>
+        </div>
+    </div>;
+
+    private RenderFragment<AssistantHistoryItem> ChatHistoryTurn => item => @<text>
+        <div class="flex justify-end">
+            <div class="user-message-bubble max-w-[82%] overflow-hidden rounded-[1.25rem] rounded-br-md bg-[#dce9ff] px-4 py-3 text-sm text-[#0b1427] shadow-sm [overflow-wrap:anywhere]">@HighlightCommandPaths(item.UserText)</div>
+        </div>
+        <div class="flex justify-start">
+            <div class="max-w-[88%] min-w-0 overflow-hidden rounded-[1.25rem] rounded-bl-md border border-white/10 bg-[#17253a]/95 p-4 text-sm text-[#d9e2f1] shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-xs font-semibold tracking-[0.14em] text-[#8fa1bc] uppercase">Requested action</p>
+                        <h2 class="mt-1 text-base font-semibold text-white">@ActionTitle(item.CommandLabel)</h2>
+                    </div>
+                    <span class="@ActionStatusClass(item)">
+                        @ActionStatusText(item)
+                    </span>
+                </div>
+                <p class="mt-3 leading-6 text-[#cbd7e8] [overflow-wrap:anywhere]">@FormalAssistantMessage(item)</p>
+                @if (!string.IsNullOrWhiteSpace(item.ResolvedPath) && !ShouldRenderFileDetails(item))
+                {
+                    <div class="mt-4 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Target path</p>
+                        <p class="mt-1 max-w-full font-mono text-xs leading-5 whitespace-pre-wrap text-[#e8f2ff] [overflow-wrap:anywhere]">@item.ResolvedPath</p>
+                    </div>
+                }
+                @if (ShouldRenderFileDetails(item))
+                {
+                    var fileDetails = ParseFileDetails(item.ExecutionMessage);
+                    var fullPath = FindFileDetailValue(fileDetails, "File details") ?? item.ResolvedPath;
+                    var fileName = FindFileDetailValue(fileDetails, "Name") ?? "Selected file";
+                    var owner = FindFileDetailValue(fileDetails, "Owner") ?? "Unknown";
+                    var size = FindFileDetailValue(fileDetails, "Size") ?? "Unknown";
+
+                    <div class="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#0f1b2c]">
+                        <div class="border-b border-white/10 bg-white/[0.03] px-4 py-3">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">File properties</p>
+                                    <h3 class="mt-1 truncate text-base font-semibold text-white">@fileName</h3>
+                                </div>
+                                <span class="max-w-full rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100 [overflow-wrap:anywhere]">Owner @owner</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(fullPath))
+                            {
+                                <p class="mt-3 max-w-full font-mono text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">@fullPath</p>
+                            }
+                        </div>
+
+                        <div class="grid gap-px bg-white/10 text-xs sm:grid-cols-3">
+                            <div class="bg-[#101d2f] px-4 py-3">
+                                <p class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">Size</p>
+                                <p class="mt-1 font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@size</p>
+                            </div>
+                            <div class="bg-[#101d2f] px-4 py-3">
+                                <p class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">Modified</p>
+                                <p class="mt-1 font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@(FindFileDetailValue(fileDetails, "Modified") ?? "Unknown")</p>
+                            </div>
+                            <div class="bg-[#101d2f] px-4 py-3">
+                                <p class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">Attributes</p>
+                                <p class="mt-1 font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@(FindFileDetailValue(fileDetails, "Attributes") ?? "Unknown")</p>
+                            </div>
+                        </div>
+
+                        <dl class="grid gap-px bg-white/10 text-xs sm:grid-cols-2">
+                            @foreach (var detail in fileDetails.Where(detail => !IsFeaturedFileDetail(detail.Key)))
+                            {
+                                <div class="min-w-0 bg-black/20 px-4 py-3">
+                                    <dt class="font-semibold tracking-[0.14em] text-[0.64rem] text-[#8fa1bc] uppercase">@detail.Key</dt>
+                                    <dd class="mt-1 leading-5 text-[#e8f2ff] [overflow-wrap:anywhere]">@detail.Value</dd>
+                                </div>
+                            }
+                        </dl>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(item.ExecutionMessage))
+                {
+                    <div class="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Outcome</p>
+                        <p class="mt-1 text-xs font-semibold text-[#e8f2ff] [overflow-wrap:anywhere]">@item.ExecutionMessage</p>
+                    </div>
+                }
+                <div class="mt-3 flex flex-wrap gap-2 font-semibold text-[0.7rem] text-[#8fa1bc]">
+                    <span>Confidence @FormatConfidence(item.Confidence)</span>
+                    <span>Source @item.Source</span>
+                </div>
+            </div>
+        </div>
+    </text>;
+
+    private RenderFragment ScheduledTaskQueuePanel() => @<div>
+        @if (_scheduledTasks.Count > 0)
+        {
+            <section class="mt-5 w-full rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 text-left shadow-xl shadow-black/20">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Scheduled queue</p>
+                        <h2 class="mt-1 text-base font-semibold text-white">Pending automations</h2>
+                    </div>
+                    <span class="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100">
+                        @_scheduledTasks.Count queued
+                    </span>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    @foreach (var task in _scheduledTasks.OrderBy(task => task.QueuePosition))
+                    {
+                        <div class="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold text-white">@task.DisplayName</p>
+                                    <p class="mt-1 text-xs leading-5 text-[#aab6c9]">
+                                        Queue #@task.QueuePosition &middot; @FormatScheduledFor(task.ScheduledForUtc) &middot; @FormatScheduledTaskKind(task)
+                                    </p>
+                                    @if (IsMessageAutomationTask(task))
+                                    {
+                                        <p class="mt-1 text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">
+                                            @task.AppDisplayName &middot; @FormatRecipients(task.RecipientNames)
+                                        </p>
+                                    }
+                                </div>
+                                <span class="@ScheduledTaskCountdownClass(task)">
+                                    @FormatScheduledCountdown(task)
+                                </span>
+                            </div>
+                            <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                        type="button"
+                                        disabled="@(_isExecuting || _cancellingScheduledTaskId == task.Id)"
+                                        @onclick="() => CancelScheduledTaskAsync(task)">
+                                    @(_cancellingScheduledTaskId == task.Id ? "Removing..." : ScheduledTaskCancelText(task))
+                                </button>
+                            </div>
+                            <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                                <div class="h-full rounded-full bg-[#8ec5ff]" style="@ScheduledTaskProgressStyle(task)"></div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(task.LastMessage))
+                            {
+                                <p class="mt-2 text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">@task.LastMessage</p>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </div>;
+
+    private string CommandInputClass(string textSize)
+    {
+        return $"min-h-8 min-w-[12rem] flex-1 bg-transparent {textSize} text-white outline-none placeholder:text-[#8995ad] disabled:text-[#8995ad]";
+    }
 
     private bool CanExecutePendingCommand =>
         _pendingCommand is not null
@@ -275,15 +702,20 @@
         && _pendingCommand.CommandLabel != "unknown";
 
     private bool CanEditPendingPath =>
-        _pendingCommand?.CommandLabel is "filesystem.create_folder" or "filesystem.delete_folder";
+        _pendingCommand?.CommandLabel is "filesystem.create_folder"
+            or "filesystem.delete_folder"
+            or "filesystem.open_folder"
+            or "filesystem.get_file_details";
+
+    private bool CanEditPendingRestart => _pendingCommand?.CommandLabel == "system.restart";
 
     private bool ShowDirectorySuggestions => _showDirectorySuggestions && _directorySuggestions.Count > 0;
 
     private string PanelClass => _pendingCommand?.IsDangerous == true
-        ? "rounded-[1.75rem] border border-rose-200 bg-rose-50 p-5 text-rose-800 shadow-sm dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100"
+        ? "mt-5 rounded-[1.25rem] border border-rose-300/25 bg-rose-950/60 p-4 text-rose-100 shadow-sm"
         : _pendingCommand?.RequiresConfirmation == true || _lowConfidenceRequiresConfirmation
-            ? "rounded-[1.75rem] border border-amber-200 bg-amber-50 p-5 text-amber-900 shadow-sm dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100"
-            : "rounded-[1.75rem] border border-cyan-200 bg-cyan-50 p-5 text-cyan-900 shadow-sm dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-100";
+            ? "mt-5 rounded-[1.25rem] border border-amber-300/25 bg-amber-950/50 p-4 text-amber-100 shadow-sm"
+            : "mt-5 rounded-[1.25rem] border border-[#8ec5ff]/20 bg-[#0f6cbd]/20 p-4 text-[#d8ecff] shadow-sm";
 
     private string PanelTitle => _pendingCommand?.IsDangerous == true
         ? "Blocked command"
@@ -293,31 +725,100 @@
 
     private string PanelMessage => _pendingCommand?.Preview ?? "No command preview is available.";
 
+    private bool IsPendingFolderCommand =>
+        _pendingCommand?.CommandLabel is "filesystem.create_folder" or "filesystem.delete_folder";
+
+    private bool IsPendingDeleteFolderCommand => _pendingCommand?.CommandLabel == "filesystem.delete_folder";
+
+    private string CommandConfirmationTitle => IsPendingDeleteFolderCommand
+        ? "Delete folder?"
+        : "Run folder command?";
+
+    private string CommandConfirmationMessage => IsPendingDeleteFolderCommand
+        ? "This action can remove files from your PC. Review the target folder before continuing."
+        : "Review the target folder before running this command.";
+
+    private string CommandConfirmationButtonText => IsPendingDeleteFolderCommand ? "Delete folder" : "Run command";
+
+    private string CommandConfirmationIconClass => IsPendingDeleteFolderCommand
+        ? "flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-400/15 text-rose-200"
+        : "flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-300/15 text-amber-100";
+
+    private string CommandConfirmationButtonClass => IsPendingDeleteFolderCommand
+        ? "rounded-xl bg-rose-400 px-4 py-2 text-sm font-semibold text-[#21080d] transition hover:bg-rose-300 disabled:bg-rose-400/40"
+        : "rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:bg-white/20 disabled:text-[#aab6c9]";
+
+    private void ToggleSidebar()
+    {
+        _isSidebarCollapsed = !_isSidebarCollapsed;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
+        if (firstRender)
         {
-            return;
+            _directoryPickerReference = DotNetObjectReference.Create(this);
         }
 
-        _directoryPickerReference = DotNetObjectReference.Create(this);
-        await JsRuntime.InvokeVoidAsync(
-            "pcAssistantDirectoryPicker.bind",
-            CommandInputId,
-            _directoryPickerReference);
+        if (_directoryPickerReference is not null)
+        {
+            await JsRuntime.InvokeVoidAsync(
+                "pcAssistantDirectoryPicker.bind",
+                CommandInputId,
+                _directoryPickerReference);
+        }
+
+        if (_focusCommandInputAfterRender)
+        {
+            _focusCommandInputAfterRender = false;
+            await JsRuntime.InvokeVoidAsync("pcAssistantDirectoryPicker.focus", CommandInputId);
+        }
+
+        if (_restoreOlderMessageScrollAfterRender)
+        {
+            _restoreOlderMessageScrollAfterRender = false;
+            await JsRuntime.InvokeVoidAsync(
+                "pcAssistantMessageList.restoreAfterPrepend",
+                _messageListElement,
+                _olderMessageScrollHeightBeforeLoad);
+            _olderMessageScrollHeightBeforeLoad = 0;
+        }
+
+        if (_scrollMessagesToBottomAfterRender)
+        {
+            _scrollMessagesToBottomAfterRender = false;
+            await JsRuntime.InvokeVoidAsync("pcAssistantMessageList.scrollToBottom", _messageListElement);
+        }
     }
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            var recentItems = await CommandHistory.ListRecentAsync(50);
-            _history.AddRange(recentItems.Select(AssistantHistoryItem.FromCommandHistory));
+            await RefreshScheduledTasksAsync();
+            await LoadChatsAsync();
+            if (RequestedChatId is Guid chatId)
+            {
+                await SelectChatAsync(chatId);
+            }
+
+            StartScheduledTaskTimer();
         }
         catch (Exception ex)
         {
+            _isLoadingChats = false;
             _errorMessage = $"Could not load command history: {ex.Message}";
         }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_isLoadingChats || RequestedChatId is not Guid chatId || _activeChatId == chatId)
+        {
+            return;
+        }
+
+        await SelectChatAsync(chatId);
     }
 
     private async Task SendAsync()
@@ -333,6 +834,7 @@
         _pendingCommand = null;
         _pendingPathText = string.Empty;
         _pendingPathError = null;
+        _pendingRestartDelaySeconds = (int)RestartScheduleDelay.TotalSeconds;
         _lastResponse = null;
         _lowConfidenceRequiresConfirmation = false;
         _pendingCommandLogId = null;
@@ -341,6 +843,7 @@
 
         try
         {
+            var activeChatId = _activeChatId ?? await CreateChatForFirstCommandAsync();
             var response = await AiClient.PredictAsync(text);
             _lastResponse = response;
 
@@ -350,9 +853,11 @@
             var parsed = Parser.Parse(_effectiveLabel, text, requiresConfirmation);
             _pendingCommand = parsed;
             _pendingPathText = parsed.ResolvedPath ?? parsed.PathText ?? string.Empty;
+            _pendingRestartDelaySeconds = RestartDelaySeconds(parsed.RestartDelay);
 
             var message = BuildPredictionMessage(response, parsed);
             var historyItem = await CommandHistory.RecordPredictionAsync(
+                activeChatId,
                 text,
                 response,
                 parsed,
@@ -361,9 +866,13 @@
                 _lowConfidenceRequiresConfirmation);
 
             _history.Add(AssistantHistoryItem.FromCommandHistory(historyItem));
+            _oldestLoadedMessageCreatedAtUtc = _history.Min(item => item.CreatedAtUtc);
+            _scrollMessagesToBottomAfterRender = true;
             _pendingCommandLogId = historyItem.Id;
+            await RefreshChatsAsync(activeChatId);
 
             _input = string.Empty;
+            _pathTailInput = string.Empty;
             if (selectedDirectories.Length > 0)
             {
                 _selectedDirectories.Clear();
@@ -403,17 +912,50 @@
                 ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(updatedHistory));
             }
         }
+        else if (CanEditPendingRestart)
+        {
+            RefreshPendingRestartDelay();
+            if (_pendingCommandLogId is Guid restartUpdateLogId && _pendingCommand is not null)
+            {
+                var updatedHistory = await CommandHistory.UpdatePlannedTargetAsync(
+                    restartUpdateLogId,
+                    _pendingCommand,
+                    BuildPendingAssistantMessage(_pendingCommand));
+                ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(updatedHistory));
+            }
+        }
+
+        var commandToExecute = _pendingCommand;
+        if (commandToExecute is null)
+        {
+            return;
+        }
 
         _isExecuting = true;
         _errorMessage = null;
 
         try
         {
-            var result = await Executor.ExecuteAsync(_pendingCommand, confirmed: true);
+            var result = await Executor.ExecuteAsync(commandToExecute, confirmed: true);
             if (_pendingCommandLogId is Guid commandLogId)
             {
                 var historyItem = await CommandHistory.RecordExecutionAsync(commandLogId, result);
                 ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(historyItem));
+
+                if (result.Succeeded && commandToExecute.CommandLabel == "system.restart")
+                {
+                    await ScheduledTasks.QueueRestartAsync(
+                        _activeChatId,
+                        commandLogId,
+                        commandToExecute.RestartDelay ?? RestartScheduleDelay,
+                        result.Message);
+                    await RefreshScheduledTasksAsync();
+                }
+                else if (result.Succeeded && commandToExecute.CommandLabel == "system.cancel_restart")
+                {
+                    await ScheduledTasks.CancelQueuedRestartTasksAsync(result.Message);
+                    await RefreshScheduledTasksAsync();
+                }
             }
 
             _pendingCommand = null;
@@ -429,6 +971,33 @@
         }
     }
 
+    private async Task RequestCommandConfirmation()
+    {
+        if (_pendingCommand is null || !CanExecutePendingCommand)
+        {
+            return;
+        }
+
+        if (IsPendingFolderCommand)
+        {
+            _showCommandConfirmationModal = true;
+            return;
+        }
+
+        await ConfirmAsync();
+    }
+
+    private void CancelCommandConfirmation()
+    {
+        _showCommandConfirmationModal = false;
+    }
+
+    private async Task ConfirmCommandFromModalAsync()
+    {
+        _showCommandConfirmationModal = false;
+        await ConfirmAsync();
+    }
+
     private async Task CancelPending()
     {
         if (_pendingCommand is not null && _pendingCommandLogId is Guid commandLogId)
@@ -441,11 +1010,81 @@
         _pendingCommandLogId = null;
         _pendingPathText = string.Empty;
         _pendingPathError = null;
+        _pendingRestartDelaySeconds = (int)RestartScheduleDelay.TotalSeconds;
+    }
+
+    private async Task CancelScheduledTaskAsync(ScheduledTaskItem task)
+    {
+        if (_cancellingScheduledTaskId is not null)
+        {
+            return;
+        }
+
+        _cancellingScheduledTaskId = task.Id;
+        _errorMessage = null;
+
+        try
+        {
+            if (IsMessageAutomationTask(task))
+            {
+                var removed = await ScheduledTasks.CancelQueuedTaskAsync(task.Id, "Message automation removed.");
+                if (removed is null)
+                {
+                    _errorMessage = "The scheduled automation was no longer queued.";
+                }
+
+                await RefreshScheduledTasksAsync();
+                return;
+            }
+
+            var result = await Executor.ExecuteAsync(
+                new ParsedCommand
+                {
+                    CommandLabel = "system.cancel_restart",
+                    OriginalText = "cancel restart",
+                    Preview = "Cancel a pending Windows restart or shutdown.",
+                },
+                confirmed: true);
+
+            if (!result.Succeeded)
+            {
+                _errorMessage = result.Message;
+                return;
+            }
+
+            var cancelled = await ScheduledTasks.CancelQueuedTaskAsync(task.Id, result.Message);
+            if (cancelled is null)
+            {
+                _errorMessage = "The scheduled task was no longer queued.";
+            }
+
+            if (task.CommandLogId is Guid commandLogId)
+            {
+                var historyItem = await CommandHistory.RecordCancellationAsync(commandLogId, result.Message);
+                ReplaceHistoryItem(AssistantHistoryItem.FromCommandHistory(historyItem));
+            }
+
+            await RefreshScheduledTasksAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _cancellingScheduledTaskId = null;
+        }
     }
 
     private async Task OnCommandInputAsync(ChangeEventArgs args)
     {
         _input = args.Value?.ToString() ?? string.Empty;
+        await RefreshDirectorySuggestionsAsync();
+    }
+
+    private async Task OnPathTailInputAsync(ChangeEventArgs args)
+    {
+        _pathTailInput = args.Value?.ToString() ?? string.Empty;
         await RefreshDirectorySuggestionsAsync();
     }
 
@@ -459,15 +1098,10 @@
         }
 
         IReadOnlyList<DirectorySuggestion> suggestions;
-        if (trigger.Value.Token.Equals("@folder:", StringComparison.OrdinalIgnoreCase))
+        var currentPath = CurrentSelectedDirectoryPath;
+        if (!string.IsNullOrWhiteSpace(currentPath)
+            && trigger.Value.Token.Equals("@folder:", StringComparison.OrdinalIgnoreCase))
         {
-            var currentPath = CurrentSelectedDirectoryPath;
-            if (string.IsNullOrWhiteSpace(currentPath))
-            {
-                ClearDirectorySuggestions();
-                return;
-            }
-
             var queryPath = string.IsNullOrWhiteSpace(trigger.Value.Query)
                 ? currentPath
                 : Path.Combine(currentPath, trigger.Value.Query);
@@ -477,13 +1111,20 @@
                 .ToArray();
             _directorySuggestionTitle = "Folders";
         }
+        else if (!string.IsNullOrWhiteSpace(currentPath)
+            && !trigger.Value.Token.Equals("@dir:", StringComparison.OrdinalIgnoreCase))
+        {
+            suggestions = await DirectorySuggestions.SuggestChildrenAsync(currentPath, trigger.Value.Query, 32);
+            _directorySuggestionTitle = $"Inside {FormatLocationName(currentPath)}";
+        }
         else
         {
             suggestions = await DirectorySuggestions.SuggestAsync(trigger.Value.Query, 32);
-            _directorySuggestionTitle = "Directories";
+            _directorySuggestionTitle = "Locations";
         }
 
         _directorySuggestions.Clear();
+        _directorySuggestions.Add(PickLocationSuggestion);
         _directorySuggestions.AddRange(suggestions);
         _selectedDirectoryIndex = _directorySuggestions.Count > 0 ? 0 : -1;
         _showDirectorySuggestions = _directorySuggestions.Count > 0;
@@ -520,18 +1161,33 @@
         }
     }
 
-    private Task SelectDirectorySuggestionAsync(int index)
+    private async Task SelectDirectorySuggestionAsync(int index)
     {
         if (index < 0 || index >= _directorySuggestions.Count)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var trigger = FindDirectoryTrigger();
+        var hadSelectedDirectories = _selectedDirectories.Count > 0;
         var selectedDirectory = _directorySuggestions[index];
-        if (trigger?.Token.Equals("@folder:", StringComparison.OrdinalIgnoreCase) == true)
+        if (selectedDirectory.Kind == PickLocationKind)
         {
-            _selectedDirectories.Add(selectedDirectory with { Kind = "folder" });
+            var pickedLocation = await LocationPicker.PickDirectoryAsync();
+            if (pickedLocation is null)
+            {
+                ClearDirectorySuggestions();
+                StateHasChanged();
+                return;
+            }
+
+            _selectedDirectories.Clear();
+            _selectedDirectories.Add(pickedLocation);
+        }
+        else if (!string.IsNullOrWhiteSpace(CurrentSelectedDirectoryPath)
+            && trigger?.Token.Equals("@dir:", StringComparison.OrdinalIgnoreCase) != true)
+        {
+            _selectedDirectories.Add(selectedDirectory);
         }
         else
         {
@@ -539,27 +1195,333 @@
             _selectedDirectories.Add(selectedDirectory);
         }
 
-        _input = trigger is not null
-            ? _input[..trigger.Value.Index].TrimEnd()
-            : _input;
+        ClearTriggerInput(trigger, hadSelectedDirectories);
+        _focusCommandInputAfterRender = true;
 
         ClearDirectorySuggestions();
         StateHasChanged();
-        return Task.CompletedTask;
+    }
+
+    private async Task LoadChatsAsync()
+    {
+        _isLoadingChats = true;
+        _chats.Clear();
+
+        var chats = await CommandHistory.ListChatsAsync();
+        _chats.AddRange(chats);
+
+        _activeChatId = null;
+        _history.Clear();
+        _isLoadingChats = false;
+    }
+
+    private async Task<Guid> CreateChatForFirstCommandAsync()
+    {
+        var chat = await CommandHistory.CreateChatAsync();
+        _chats.Insert(0, chat);
+        _activeChatId = chat.Id;
+        return chat.Id;
+    }
+
+    private async Task RefreshScheduledTasksAsync()
+    {
+        if (_isRefreshingScheduledTasks)
+        {
+            return;
+        }
+
+        _isRefreshingScheduledTasks = true;
+        try
+        {
+            await ScheduledTasks.CompleteDueTasksAsync();
+            var tasks = await ScheduledTasks.ListQueuedAsync();
+            _scheduledTasks.Clear();
+            _scheduledTasks.AddRange(tasks);
+        }
+        finally
+        {
+            _isRefreshingScheduledTasks = false;
+        }
+    }
+
+    private void StartScheduledTaskTimer()
+    {
+        _scheduledTaskTimer ??= new System.Threading.Timer(
+            _ => _ = InvokeAsync(OnScheduledTaskTimerTickAsync),
+            null,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(1));
+    }
+
+    private async Task OnScheduledTaskTimerTickAsync()
+    {
+        if (_scheduledTasks.Any(task => task.ScheduledForUtc <= DateTimeOffset.UtcNow))
+        {
+            await RefreshScheduledTasksAsync();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task RefreshChatsAsync(Guid activeChatId)
+    {
+        var chats = await CommandHistory.ListChatsAsync();
+        _chats.Clear();
+        _chats.AddRange(chats);
+        _activeChatId = activeChatId;
+    }
+
+    private async Task NewChatAsync()
+    {
+        _errorMessage = null;
+        var chat = await CommandHistory.CreateChatAsync();
+        _chats.Insert(0, chat);
+        await SelectChatAsync(chat.Id);
+    }
+
+    private async Task SelectChatAsync(Guid chatSessionId)
+    {
+        _errorMessage = null;
+        _pendingCommand = null;
+        _pendingCommandLogId = null;
+        _pendingPathText = string.Empty;
+        _pendingPathError = null;
+        _lastResponse = null;
+        _lowConfidenceRequiresConfirmation = false;
+        _pathTailInput = string.Empty;
+        ClearDirectorySuggestions();
+        _activeChatId = chatSessionId;
+        _loadingChatId = chatSessionId;
+        _isLoadingSelectedChat = true;
+        _isLoadingOlderMessages = false;
+        _hasOlderMessages = false;
+        _oldestLoadedMessageCreatedAtUtc = null;
+        _history.Clear();
+        StateHasChanged();
+
+        try
+        {
+            var chat = await CommandHistory.GetChatAsync(chatSessionId, ChatMessagePageSize);
+            if (_loadingChatId != chatSessionId)
+            {
+                return;
+            }
+
+            _history.Clear();
+            _history.AddRange(chat.Messages.Select(AssistantHistoryItem.FromCommandHistory));
+            ApplyChatPageState(chat);
+            _scrollMessagesToBottomAfterRender = true;
+
+            var existingIndex = _chats.FindIndex(existingChat => existingChat.Id == chatSessionId);
+            if (existingIndex >= 0)
+            {
+                _chats[existingIndex] = chat.Summary;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not load chat messages: {ex.Message}";
+        }
+        finally
+        {
+            if (_loadingChatId == chatSessionId)
+            {
+                _isLoadingSelectedChat = false;
+                _loadingChatId = null;
+            }
+        }
+    }
+
+    private async Task LoadOlderMessagesAsync()
+    {
+        if (_activeChatId is not Guid activeChatId
+            || _isLoadingSelectedChat
+            || _isLoadingOlderMessages
+            || !_hasOlderMessages)
+        {
+            return;
+        }
+
+        _isLoadingOlderMessages = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            if (_olderMessageScrollHeightBeforeLoad <= 0)
+            {
+                var metrics = await JsRuntime.InvokeAsync<MessageListMetrics>(
+                    "pcAssistantMessageList.getMetrics",
+                    _messageListElement);
+                _olderMessageScrollHeightBeforeLoad = metrics.ScrollHeight;
+            }
+
+            var chat = await CommandHistory.GetChatAsync(
+                activeChatId,
+                ChatMessagePageSize,
+                _oldestLoadedMessageCreatedAtUtc);
+            if (_activeChatId != activeChatId)
+            {
+                return;
+            }
+
+            var existingIds = _history.Select(item => item.Id).ToHashSet();
+            var olderMessages = chat.Messages
+                .Where(message => !existingIds.Contains(message.Id))
+                .Select(AssistantHistoryItem.FromCommandHistory)
+                .ToArray();
+            _history.InsertRange(0, olderMessages);
+            ApplyChatPageState(chat);
+            if (olderMessages.Length > 0)
+            {
+                _restoreOlderMessageScrollAfterRender = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not load older messages: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingOlderMessages = false;
+        }
+    }
+
+    private async Task OnMessageListScrollAsync()
+    {
+        if (!_hasOlderMessages || _isLoadingOlderMessages || _isLoadingSelectedChat)
+        {
+            return;
+        }
+
+        var metrics = await JsRuntime.InvokeAsync<MessageListMetrics>(
+            "pcAssistantMessageList.getMetrics",
+            _messageListElement);
+        if (metrics.ScrollTop > 96)
+        {
+            return;
+        }
+
+        _olderMessageScrollHeightBeforeLoad = metrics.ScrollHeight;
+        await LoadOlderMessagesAsync();
+    }
+
+    private void ApplyChatPageState(ChatSessionDetails chat)
+    {
+        _hasOlderMessages = chat.HasOlderMessages;
+        _oldestLoadedMessageCreatedAtUtc = _history.Count == 0
+            ? null
+            : _history.Min(item => item.CreatedAtUtc);
+    }
+
+    private void RequestDeleteChat(Guid chatSessionId)
+    {
+        _chatPendingDeletion = _chats.FirstOrDefault(chat => chat.Id == chatSessionId);
+    }
+
+    private void CancelDeleteChat()
+    {
+        if (_isDeletingChat)
+        {
+            return;
+        }
+
+        _chatPendingDeletion = null;
+    }
+
+    private async Task ConfirmDeleteChatAsync()
+    {
+        if (_chatPendingDeletion is null)
+        {
+            return;
+        }
+
+        _isDeletingChat = true;
+        try
+        {
+            await DeleteChatAsync(_chatPendingDeletion.Id);
+            _chatPendingDeletion = null;
+        }
+        finally
+        {
+            _isDeletingChat = false;
+        }
+    }
+
+    private async Task DeleteChatAsync(Guid chatSessionId)
+    {
+        _errorMessage = null;
+        await CommandHistory.DeleteChatAsync(chatSessionId);
+        _chats.RemoveAll(chat => chat.Id == chatSessionId);
+
+        if (_chats.Count == 0)
+        {
+            var newChat = await CommandHistory.CreateChatAsync();
+            _chats.Add(newChat);
+        }
+
+        var nextChatId = _activeChatId == chatSessionId
+            ? _chats[0].Id
+            : _activeChatId ?? _chats[0].Id;
+        await SelectChatAsync(nextChatId);
+    }
+
+    private static bool HasInlinePath(string text)
+    {
+        return !string.IsNullOrWhiteSpace(text) && InlinePathRegex.IsMatch(text);
+    }
+
+    private static MarkupString HighlightCommandPaths(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return new MarkupString(string.Empty);
+        }
+
+        var cursor = 0;
+        var builder = new System.Text.StringBuilder();
+        foreach (System.Text.RegularExpressions.Match match in InlinePathRegex.Matches(text))
+        {
+            if (match.Index > cursor)
+            {
+                builder.Append(System.Net.WebUtility.HtmlEncode(text[cursor..match.Index]));
+            }
+
+            var path = match.Groups["path"].Value;
+            builder
+                .Append("<span class=\"inline-path-highlight\">")
+                .Append(System.Net.WebUtility.HtmlEncode(path))
+                .Append("</span>");
+            cursor = match.Index + match.Length;
+        }
+
+        if (cursor < text.Length)
+        {
+            builder.Append(System.Net.WebUtility.HtmlEncode(text[cursor..]));
+        }
+
+        return new MarkupString(builder.ToString());
     }
 
     private string BuildCommandText()
     {
         var commandText = _input.Trim();
+        var tailText = _pathTailInput.Trim();
         var selectedPath = CurrentSelectedDirectoryPath;
         if (string.IsNullOrWhiteSpace(selectedPath))
         {
-            return commandText;
+            return string.IsNullOrWhiteSpace(tailText)
+                ? commandText
+                : $"{commandText} {tailText}".Trim();
         }
 
-        return string.IsNullOrWhiteSpace(commandText)
+        var commandWithPath = string.IsNullOrWhiteSpace(commandText)
             ? selectedPath
             : $"{commandText} {selectedPath}".Trim();
+
+        return string.IsNullOrWhiteSpace(tailText)
+            ? commandWithPath
+            : $"{commandWithPath} {tailText}".Trim();
     }
 
     private string? CurrentSelectedDirectoryPath => _selectedDirectories.Count == 0
@@ -574,23 +1536,38 @@
         }
 
         _selectedDirectories.RemoveRange(index, _selectedDirectories.Count - index);
+        if (_selectedDirectories.Count == 0)
+        {
+            _pathTailInput = string.Empty;
+        }
     }
 
     private string DirectorySuggestionClass(int index)
     {
         var selectedClasses = index == _selectedDirectoryIndex
-            ? "bg-cyan-50 text-cyan-950 dark:bg-cyan-300 dark:text-slate-950"
-            : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/[0.08]";
+            ? "bg-[#26364f] text-[#d8ecff]"
+            : "text-[#c4cede] hover:bg-white/[0.08]";
 
         return $"block w-full rounded-xl px-2.5 py-1.5 text-left transition {selectedClasses}";
+    }
+
+    private string ChatRowClass(Guid chatSessionId)
+    {
+        var selectedClasses = chatSessionId == _activeChatId
+            ? "bg-white/[0.08] text-white"
+            : "text-[#d8deeb] hover:bg-white/[0.06] hover:text-white";
+
+        return $"group flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold transition {selectedClasses}";
     }
 
     private static string DirectorySuggestionIconClass(string kind)
     {
         var colorClass = kind switch
         {
+            PickLocationKind => "bg-[#dce9ff] text-[#0b1427]",
             "drive" => "bg-indigo-50 text-indigo-700 dark:bg-indigo-400/[0.14] dark:text-indigo-200",
             "known-folder" => "bg-amber-50 text-amber-700 dark:bg-amber-400/[0.14] dark:text-amber-200",
+            "file" => "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/[0.14] dark:text-emerald-200",
             _ => "bg-slate-100 text-slate-600 dark:bg-white/[0.1] dark:text-slate-200",
         };
 
@@ -603,7 +1580,8 @@
         {
             "drive" => "bg-indigo-100 text-indigo-700 dark:bg-indigo-300/[0.2] dark:text-indigo-100",
             "known-folder" => "bg-amber-100 text-amber-700 dark:bg-amber-300/[0.2] dark:text-amber-100",
-            _ => "bg-cyan-100 text-cyan-700 dark:bg-cyan-300/[0.2] dark:text-cyan-100",
+            "file" => "bg-emerald-100 text-emerald-700 dark:bg-emerald-300/[0.2] dark:text-emerald-100",
+            _ => "bg-[#e8f2ff] text-[#0f6cbd] dark:bg-[#0f6cbd]/20 dark:text-[#d8ecff]",
         };
 
         return $"flex size-5 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5 {colorClass}";
@@ -611,18 +1589,70 @@
 
     private AssistantDirectoryTrigger? FindDirectoryTrigger()
     {
-        var directoryIndex = _input.LastIndexOf("@dir:", StringComparison.OrdinalIgnoreCase);
-        var folderIndex = _input.LastIndexOf("@folder:", StringComparison.OrdinalIgnoreCase);
+        var input = ActiveMentionInput;
+        var directoryIndex = input.LastIndexOf("@dir:", StringComparison.OrdinalIgnoreCase);
+        var folderIndex = input.LastIndexOf("@folder:", StringComparison.OrdinalIgnoreCase);
+        var mentionIndex = FindLastLocationMentionIndex(input);
 
-        if (directoryIndex < 0 && folderIndex < 0)
+        if (directoryIndex < 0 && folderIndex < 0 && mentionIndex < 0)
         {
             return null;
         }
 
-        var token = folderIndex > directoryIndex ? "@folder:" : "@dir:";
-        var index = folderIndex > directoryIndex ? folderIndex : directoryIndex;
-        var query = _input[(index + token.Length)..].Trim();
+        var token = "@";
+        var index = mentionIndex;
+        if (directoryIndex >= index)
+        {
+            token = "@dir:";
+            index = directoryIndex;
+        }
+
+        if (folderIndex >= index)
+        {
+            token = "@folder:";
+            index = folderIndex;
+        }
+
+        var query = input[(index + token.Length)..].Trim();
         return new AssistantDirectoryTrigger(index, token, query);
+    }
+
+    private string ActiveMentionInput => _selectedDirectories.Count == 0 ? _input : _pathTailInput;
+
+    private void ClearTriggerInput(AssistantDirectoryTrigger? trigger, bool hadSelectedDirectories)
+    {
+        if (trigger is null)
+        {
+            return;
+        }
+
+        if (!hadSelectedDirectories)
+        {
+            _input = _input[..trigger.Value.Index].TrimEnd();
+            return;
+        }
+
+        _pathTailInput = _pathTailInput[..trigger.Value.Index].TrimStart();
+    }
+
+    private static int FindLastLocationMentionIndex(string input)
+    {
+        for (var index = input.Length - 1; index >= 0; index--)
+        {
+            if (input[index] != '@')
+            {
+                continue;
+            }
+
+            if (index > 0 && !char.IsWhiteSpace(input[index - 1]))
+            {
+                continue;
+            }
+
+            return index;
+        }
+
+        return -1;
     }
 
     private static bool PathsEqual(string first, string second)
@@ -635,20 +1665,68 @@
 
     private static MarkupString DirectoryIcon(string kind)
     {
-        var icon = kind == "drive"
-            ? """
+        var icon = kind switch
+        {
+            "drive" => """
               <svg viewBox="0 0 24 24" fill="none">
                   <path d="M5 5.5h14l2 7v5A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-5l2-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
                   <path d="M3 12.5h18M7 16h.01M10 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
               </svg>
-              """
-            : """
+              """,
+            "file" => """
+              <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M7 3.5h6l4 4v13H7V3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                  <path d="M13 3.5V8h4M9.5 12h5M9.5 15h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+              </svg>
+              """,
+            PickLocationKind => """
+              <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M12 21s6-5.2 6-11a6 6 0 0 0-12 0c0 5.8 6 11 6 11Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                  <path d="M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="currentColor" stroke-width="1.8"></path>
+              </svg>
+              """,
+            _ => """
               <svg viewBox="0 0 24 24" fill="none">
                   <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v6A2.5 2.5 0 0 1 18 18.5H6A2.5 2.5 0 0 1 3.5 16v-8.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
               </svg>
-              """;
+              """,
+        };
 
         return new MarkupString(icon);
+    }
+
+    private static MarkupString CloseIcon()
+    {
+        return new MarkupString(
+            """
+            <svg class="size-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+            """);
+    }
+
+    private static MarkupString ChevronRightIcon()
+    {
+        return new MarkupString(
+            """
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m9 6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            """);
+    }
+
+    private static string DirectorySuggestionPathText(DirectorySuggestion suggestion)
+    {
+        return suggestion.Kind == PickLocationKind
+            ? "Browse your PC"
+            : suggestion.Path;
+    }
+
+    private static string FormatLocationName(string path)
+    {
+        var trimmedPath = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name = Path.GetFileName(trimmedPath);
+        return string.IsNullOrWhiteSpace(name) ? trimmedPath : name;
     }
 
     private void ClearDirectorySuggestions()
@@ -662,6 +1740,15 @@
     {
         _pendingPathText = args.Value?.ToString() ?? string.Empty;
         RefreshPendingPath();
+    }
+
+    private void OnPendingRestartDelayInput(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        _pendingRestartDelaySeconds = int.TryParse(value, out var seconds)
+            ? Math.Clamp(seconds, 1, (int)MaximumRestartScheduleDelay.TotalSeconds)
+            : (int)RestartScheduleDelay.TotalSeconds;
+        RefreshPendingRestartDelay();
     }
 
     private void RefreshPendingPath()
@@ -693,6 +1780,7 @@
             LocationType = command.LocationType,
             PathText = targetPath,
             ResolvedPath = string.IsNullOrWhiteSpace(targetPath) ? null : targetPath,
+            RestartDelay = command.RestartDelay,
             RequiresConfirmation = command.RequiresConfirmation,
             IsDangerous = isBlocked,
             Preview = isBlocked
@@ -702,11 +1790,77 @@
         };
     }
 
+    private void RefreshPendingRestartDelay()
+    {
+        if (_pendingCommand is null || !CanEditPendingRestart)
+        {
+            return;
+        }
+
+        var delay = TimeSpan.FromSeconds(Math.Clamp(
+            _pendingRestartDelaySeconds,
+            1,
+            (int)MaximumRestartScheduleDelay.TotalSeconds));
+        _pendingRestartDelaySeconds = (int)delay.TotalSeconds;
+        _pendingCommand = CreateEditedRestartCommand(_pendingCommand, delay);
+    }
+
+    private static ParsedCommand CreateEditedRestartCommand(ParsedCommand command, TimeSpan delay)
+    {
+        return new ParsedCommand
+        {
+            CommandLabel = command.CommandLabel,
+            OriginalText = command.OriginalText,
+            FolderName = command.FolderName,
+            LocationAlias = command.LocationAlias,
+            LocationType = command.LocationType,
+            PathText = command.PathText,
+            ResolvedPath = command.ResolvedPath,
+            RestartDelay = delay,
+            RequiresConfirmation = command.RequiresConfirmation,
+            IsDangerous = command.IsDangerous,
+            Preview = $"Restart this PC {FormatDelayPreview(delay)}.",
+            ErrorMessage = command.ErrorMessage,
+        };
+    }
+
+    private static int RestartDelaySeconds(TimeSpan? delay)
+    {
+        var normalized = delay is null || delay.Value < TimeSpan.FromSeconds(1)
+            ? RestartScheduleDelay
+            : delay.Value > MaximumRestartScheduleDelay
+                ? MaximumRestartScheduleDelay
+                : delay.Value;
+        return Math.Max(1, (int)Math.Round(normalized.TotalSeconds));
+    }
+
+    private static string FormatDelayPreview(TimeSpan delay)
+    {
+        if (delay.TotalHours >= 1 && delay.TotalHours % 1 == 0)
+        {
+            var hours = (int)delay.TotalHours;
+            return $"after {hours} {(hours == 1 ? "hour" : "hours")}";
+        }
+
+        if (delay.TotalMinutes >= 1 && delay.TotalMinutes % 1 == 0)
+        {
+            var minutes = (int)delay.TotalMinutes;
+            return $"after {minutes} {(minutes == 1 ? "minute" : "minutes")}";
+        }
+
+        var seconds = Math.Max(1, (int)Math.Round(delay.TotalSeconds));
+        return $"after {seconds} {(seconds == 1 ? "second" : "seconds")}";
+    }
+
     private static string BuildPathPreview(string commandLabel, string targetPath)
     {
-        return commandLabel == "filesystem.delete_folder"
-            ? $"Delete folder: {targetPath}"
-            : $"Create folder: {targetPath}";
+        return commandLabel switch
+        {
+            "filesystem.delete_folder" => $"Delete folder: {targetPath}",
+            "filesystem.open_folder" => $"Open folder: {targetPath}",
+            "filesystem.get_file_details" => $"Get file details: {targetPath}",
+            _ => $"Create folder: {targetPath}",
+        };
     }
 
     private static string BuildPendingAssistantMessage(ParsedCommand command)
@@ -743,9 +1897,219 @@
             : parsed.Preview;
     }
 
+    private static string ActionTitle(string commandLabel)
+    {
+        return commandLabel switch
+        {
+            "filesystem.create_folder" => "Create folder",
+            "filesystem.delete_folder" => "Delete folder",
+            "filesystem.open_folder" => "Open folder",
+            "filesystem.get_file_details" => "File details",
+            "system.restart" => "Restart PC",
+            "system.cancel_restart" => "Cancel restart",
+            _ => "Review request",
+        };
+    }
+
+    private static string FormalAssistantMessage(AssistantHistoryItem item)
+    {
+        if (item.CommandLabel == "unknown")
+        {
+            return item.AssistantMessage;
+        }
+
+        if (item.ExecutionStatus.Equals("succeeded", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The requested action completed successfully.";
+        }
+
+        if (item.ExecutionStatus.Equals("failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The requested action could not be completed.";
+        }
+
+        if (item.ExecutionStatus.Equals("cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The requested action was cancelled.";
+        }
+
+        if (item.AssistantMessage.Contains("confirm", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Review the action details and confirm when you are ready.";
+        }
+
+        return "Review the action details before continuing.";
+    }
+
+    private static bool ShouldRenderFileDetails(AssistantHistoryItem item)
+    {
+        return item.CommandLabel == "filesystem.get_file_details"
+            && item.ExecutionStatus.Equals("succeeded", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(item.ExecutionMessage);
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, string>> ParseFileDetails(string? executionMessage)
+    {
+        if (string.IsNullOrWhiteSpace(executionMessage))
+        {
+            return Array.Empty<KeyValuePair<string, string>>();
+        }
+
+        var details = new List<KeyValuePair<string, string>>();
+        foreach (var line in executionMessage.Split(
+            ['\r', '\n'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separatorIndex = line.IndexOf(':', StringComparison.Ordinal);
+            if (separatorIndex <= 0 || separatorIndex >= line.Length - 1)
+            {
+                continue;
+            }
+
+            var label = line[..separatorIndex].Trim();
+            var value = FormatFileDetailValue(label, line[(separatorIndex + 1)..].Trim());
+            if (!string.IsNullOrWhiteSpace(label) && !string.IsNullOrWhiteSpace(value))
+            {
+                details.Add(new KeyValuePair<string, string>(label, value));
+            }
+        }
+
+        return details;
+    }
+
+    private static string FormatFileDetailValue(string label, string value)
+    {
+        if (!IsFileTimestampDetail(label))
+        {
+            return value;
+        }
+
+        if (DateTimeOffset.TryParse(value, out var timestampWithOffset))
+        {
+            return timestampWithOffset.ToLocalTime().ToString("MMM d, yyyy, h:mm tt");
+        }
+
+        return DateTime.TryParse(value, out var timestamp)
+            ? timestamp.ToString("MMM d, yyyy, h:mm tt")
+            : value;
+    }
+
+    private static bool IsFileTimestampDetail(string label)
+    {
+        return label.Equals("Created", StringComparison.OrdinalIgnoreCase)
+            || label.Equals("Modified", StringComparison.OrdinalIgnoreCase)
+            || label.Equals("Accessed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? FindFileDetailValue(IReadOnlyList<KeyValuePair<string, string>> details, string key)
+    {
+        return details.FirstOrDefault(
+            detail => detail.Key.Equals(key, StringComparison.OrdinalIgnoreCase)).Value;
+    }
+
+    private static bool IsFeaturedFileDetail(string key)
+    {
+        return key.Equals("File details", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Name", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Owner", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Size", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Modified", StringComparison.OrdinalIgnoreCase)
+            || key.Equals("Attributes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ActionStatusText(AssistantHistoryItem item)
+    {
+        return item.ExecutionStatus.ToLowerInvariant() switch
+        {
+            "succeeded" => "Completed",
+            "failed" => "Failed",
+            "cancelled" => "Cancelled",
+            _ when item.AssistantMessage.Contains("confirm", StringComparison.OrdinalIgnoreCase) => "Needs confirmation",
+            _ => "Ready",
+        };
+    }
+
+    private static string ActionStatusClass(AssistantHistoryItem item)
+    {
+        var baseClass = "rounded-full px-3 py-1 text-xs font-semibold";
+        return item.ExecutionStatus.ToLowerInvariant() switch
+        {
+            "succeeded" => $"{baseClass} bg-emerald-300/15 text-emerald-100 ring-1 ring-emerald-300/25",
+            "failed" => $"{baseClass} bg-rose-300/15 text-rose-100 ring-1 ring-rose-300/25",
+            "cancelled" => $"{baseClass} bg-slate-300/15 text-slate-100 ring-1 ring-slate-300/25",
+            _ when item.AssistantMessage.Contains("confirm", StringComparison.OrdinalIgnoreCase) => $"{baseClass} bg-amber-300/15 text-amber-100 ring-1 ring-amber-300/25",
+            _ => $"{baseClass} bg-sky-300/15 text-sky-100 ring-1 ring-sky-300/25",
+        };
+    }
+
     private static string FormatConfidence(double confidence)
     {
         return $"{confidence:P0}";
+    }
+
+    private static string FormatScheduledFor(DateTimeOffset scheduledForUtc)
+    {
+        return scheduledForUtc.ToLocalTime().ToString("MMM d, h:mm tt");
+    }
+
+    private static string FormatScheduledTaskKind(ScheduledTaskItem task)
+    {
+        if (!IsMessageAutomationTask(task))
+        {
+            return "Restart task";
+        }
+
+        return task.RepeatMode == ScheduledTask.WeeklyRepeatMode
+            ? "Weekly message"
+            : "One-time message";
+    }
+
+    private static string FormatRecipients(IReadOnlyList<string> recipients)
+    {
+        return recipients.Count == 0 ? "No recipients" : string.Join(", ", recipients);
+    }
+
+    private static string ScheduledTaskCancelText(ScheduledTaskItem task)
+    {
+        return IsMessageAutomationTask(task) ? "Remove automation" : "Cancel task";
+    }
+
+    private static bool IsMessageAutomationTask(ScheduledTaskItem task)
+    {
+        return task.TaskType == ScheduledTask.MessageAutomationTaskType;
+    }
+
+    private static string FormatScheduledCountdown(ScheduledTaskItem task)
+    {
+        var remaining = task.ScheduledForUtc - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return "Due now";
+        }
+
+        return remaining.TotalMinutes >= 1
+            ? $"{(int)remaining.TotalMinutes:D2}:{remaining.Seconds:D2}"
+            : $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds))}s";
+    }
+
+    private static string ScheduledTaskCountdownClass(ScheduledTaskItem task)
+    {
+        var remaining = task.ScheduledForUtc - DateTimeOffset.UtcNow;
+        var baseClass = "rounded-full px-3 py-1 text-xs font-semibold";
+        return remaining <= TimeSpan.FromSeconds(10)
+            ? $"{baseClass} bg-amber-300/15 text-amber-100 ring-1 ring-amber-300/25"
+            : $"{baseClass} bg-sky-300/10 text-sky-100 ring-1 ring-sky-300/25";
+    }
+
+    private static string ScheduledTaskProgressStyle(ScheduledTaskItem task)
+    {
+        var totalSeconds = Math.Max(1, (task.ScheduledForUtc - task.CreatedAtUtc).TotalSeconds);
+        var elapsedSeconds = Math.Clamp(
+            (DateTimeOffset.UtcNow - task.CreatedAtUtc).TotalSeconds,
+            0,
+            totalSeconds);
+        var percentage = elapsedSeconds / totalSeconds * 100;
+        return $"width: {percentage:F0}%";
     }
 
     private static string ConfidenceClass(double confidence)
@@ -763,8 +2127,18 @@
         return "rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-400/[0.12] dark:text-emerald-200";
     }
 
+    private sealed class MessageListMetrics
+    {
+        public double ScrollTop { get; set; }
+
+        public double ScrollHeight { get; set; }
+
+        public double ClientHeight { get; set; }
+    }
+
     public void Dispose()
     {
+        _scheduledTaskTimer?.Dispose();
         _directoryPickerReference?.Dispose();
     }
 

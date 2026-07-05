@@ -1,7 +1,7 @@
 using Autofac;
 using Autofac.Extras.Moq;
 using Moq;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
 using PcAssistant.Infrastructure.Commands;
 using PcAssistant.Infrastructure.Commands.Handlers;
@@ -112,7 +112,7 @@ public sealed class CommandParserServiceTests
 
         parsed.CommandLabel.ShouldBe("system.restart");
         parsed.RequiresConfirmation.ShouldBeTrue();
-        parsed.Preview.ShouldBe("Restart this PC after a short delay.");
+        parsed.Preview.ShouldBe("Restart this PC after 30 seconds.");
     }
 
     [Test]
@@ -166,6 +166,29 @@ public sealed class CommandParserServiceTests
         parsed.CommandLabel.ShouldBe("filesystem.create_folder");
         parsed.FolderName.ShouldBe("CT");
         parsed.ResolvedPath.ShouldBe(Path.Combine(downloadsPath, "CT"));
+    }
+
+    [Test]
+    public void Folder_handler_combines_named_folder_with_drive_root_path()
+    {
+        var safety = _mock.Mock<ICommandSafetyValidator>();
+        safety.Setup(validator => validator.ValidateFileSystemTarget(It.IsAny<string>()))
+            .Returns((string? path) => SafetyValidationResult.Allowed(Path.GetFullPath(path!)));
+
+        var handler = _mock.Create<FolderCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.create_folder",
+            @"create me a folder called Chat on D:\",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.create_folder");
+        parsed.FolderName.ShouldBe("Chat");
+        parsed.LocationAlias.ShouldBe("explicit path");
+        parsed.LocationType.ShouldBe("absolute");
+        parsed.ResolvedPath.ShouldBe(@"D:\Chat");
     }
 
     [Test]
@@ -235,6 +258,65 @@ public sealed class CommandParserServiceTests
     }
 
     [Test]
+    public void File_system_path_handler_parses_open_folder_from_known_location()
+    {
+        var handler = _mock.Create<FileSystemPathCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.open_folder",
+            "open downloads folder",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.open_folder");
+        parsed.LocationAlias.ShouldBe("downloads");
+        parsed.LocationType.ShouldBe("known-folder");
+        parsed.RequiresConfirmation.ShouldBeFalse();
+        parsed.ResolvedPath.ShouldNotBeNull();
+        parsed.ResolvedPath!.ShouldContain("Downloads");
+        parsed.Preview.ShouldStartWith("Open folder:");
+    }
+
+    [Test]
+    public void File_system_path_handler_parses_file_details_in_known_location()
+    {
+        var handler = _mock.Create<FileSystemPathCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.get_file_details",
+            "give file details for report.pdf in downloads",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.get_file_details");
+        parsed.LocationAlias.ShouldBe("downloads");
+        parsed.ResolvedPath.ShouldNotBeNull();
+        parsed.ResolvedPath!.ShouldContain("Downloads");
+        parsed.ResolvedPath.ShouldEndWith($"{Path.DirectorySeparatorChar}report.pdf");
+        parsed.Preview.ShouldStartWith("Get file details:");
+    }
+
+    [Test]
+    public void File_system_path_handler_parses_file_details_from_explicit_path()
+    {
+        var handler = _mock.Create<FileSystemPathCommandParserHandler>();
+        var context = new CommandParseContext(
+            "filesystem.get_file_details",
+            @"show metadata for C:\Temp\Quarterly Report.xlsx",
+            RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.CommandLabel.ShouldBe("filesystem.get_file_details");
+        parsed.LocationAlias.ShouldBe("explicit path");
+        parsed.LocationType.ShouldBe("absolute");
+        parsed.ResolvedPath.ShouldBe(@"C:\Temp\Quarterly Report.xlsx");
+    }
+
+    [Test]
     public void Restart_handler_requires_confirmation()
     {
         var handler = new RestartCommandParserHandler();
@@ -245,6 +327,19 @@ public sealed class CommandParserServiceTests
         parsed.ShouldNotBeNull();
         parsed.CommandLabel.ShouldBe("system.restart");
         parsed.RequiresConfirmation.ShouldBeTrue();
+    }
+
+    [Test]
+    public void Restart_handler_parses_requested_delay()
+    {
+        var handler = new RestartCommandParserHandler();
+        var context = new CommandParseContext("system.restart", "restart my pc after 1 minute", RequiresConfirmation: false);
+
+        var parsed = handler.TryParse(context);
+
+        parsed.ShouldNotBeNull();
+        parsed.RestartDelay.ShouldBe(TimeSpan.FromMinutes(1));
+        parsed.Preview.ShouldBe("Restart this PC after 1 minute.");
     }
 
     [Test]

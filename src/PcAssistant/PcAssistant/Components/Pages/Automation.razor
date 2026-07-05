@@ -1,0 +1,971 @@
+@page "/automation"
+@inject IScheduledTaskService ScheduledTasks
+@inject IInstalledAppDiscoveryService InstalledApps
+@inject IJSRuntime JsRuntime
+@using PcAssistant.Application.Abstractions.Services
+@using PcAssistant.Application.Models
+@using PcAssistant.Domain.Entity
+@implements IDisposable
+
+<PageTitle>Automation</PageTitle>
+
+<section class="ui-scrollbar h-screen min-h-0 overflow-y-auto bg-[linear-gradient(180deg,#071321_0%,#0d2134_52%,#08101d_100%)] px-5 py-6 text-[#d9e2f1] sm:px-8"
+         @onclick="CloseAppOptions">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-5">
+        <header class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Automation</p>
+                <h1 class="mt-1 text-2xl font-semibold text-white">Automations</h1>
+            </div>
+            <span class="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100">
+                @_totalAutomationCount saved
+            </span>
+        </header>
+
+        @if (_isInitialLoading)
+        {
+            @AutomationSkeleton()
+            @ScheduledSkeleton()
+        }
+        else
+        {
+            <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 text-left shadow-xl shadow-black/20">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Create</p>
+                        <h2 class="mt-1 text-base font-semibold text-white">Automation types</h2>
+                    </div>
+                    <span class="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                        @(_isLoadingApps ? "Loading apps" : $"{InstalledAppCount} installed apps")
+                    </span>
+                </div>
+
+                <div class="mt-4 grid gap-3 md:grid-cols-3">
+                    <button class="rounded-xl border border-sky-300/20 bg-sky-300/10 px-4 py-4 text-left transition hover:bg-sky-300/15"
+                            type="button"
+                            @onclick="OpenCreateMessageModal">
+                        <span class="block text-sm font-semibold text-white">Message automation</span>
+                        <span class="mt-1 block text-xs leading-5 text-[#aab6c9]">Send scheduled chat messages.</span>
+                    </button>
+                    <button class="rounded-xl border border-white/10 bg-black/15 px-4 py-4 text-left opacity-60"
+                            type="button"
+                            disabled>
+                        <span class="block text-sm font-semibold text-white">Web automation</span>
+                        <span class="mt-1 block text-xs leading-5 text-[#aab6c9]">Coming later.</span>
+                    </button>
+                    <button class="rounded-xl border border-white/10 bg-black/15 px-4 py-4 text-left opacity-60"
+                            type="button"
+                            disabled>
+                        <span class="block text-sm font-semibold text-white">Email automation</span>
+                        <span class="mt-1 block text-xs leading-5 text-[#aab6c9]">Coming later.</span>
+                    </button>
+                </div>
+            </section>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <p class="rounded-xl border border-rose-300/20 bg-rose-950/80 px-3 py-2 text-sm text-rose-100">@_errorMessage</p>
+            }
+
+            <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 text-left shadow-xl shadow-black/20">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Saved</p>
+                        <h2 class="mt-1 text-base font-semibold text-white">Automations</h2>
+                    </div>
+                    <span class="text-xs font-semibold text-[#aab6c9]">Page @_automationPage of @TotalAutomationPages</span>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                    <input class="min-h-10 min-w-64 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none placeholder:text-[#8995ad] focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           placeholder="Search automations"
+                           value="@_taskSearchText"
+                           @oninput="OnTaskSearchChanged" />
+                    @if (!string.IsNullOrWhiteSpace(_taskSearchText))
+                    {
+                        <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                                type="button"
+                                @onclick="ClearTaskSearchAsync">
+                            Clear
+                        </button>
+                    }
+                </div>
+
+                @if (_messageTasks.Count == 0)
+                {
+                    <p class="mt-4 rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">
+                        @(string.IsNullOrWhiteSpace(_taskSearchText) ? "No automations saved." : "No automations match your search.")
+                    </p>
+                }
+                else
+                {
+                    <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                        @foreach (var task in _messageTasks)
+                        {
+                            <article class="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <h3 class="text-sm font-semibold text-white">@task.DisplayName</h3>
+                                        <p class="mt-1 text-xs leading-5 text-[#aab6c9]">@FormatSchedule(task) &middot; @FormatRepeat(task)</p>
+                                        <p class="mt-1 text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">@task.AppDisplayName &middot; @FormatRecipients(task.RecipientNames)</p>
+                                    </div>
+                                    <span class="@StatusClass(task)">@FormatStatus(task)</span>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(task.MessageText))
+                                {
+                                    <p class="mt-3 rounded-lg bg-black/20 px-3 py-2 text-xs leading-5 text-[#e8f2ff] [overflow-wrap:anywhere]">@task.MessageText</p>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(task.LastMessage))
+                                {
+                                    <p class="mt-2 text-xs leading-5 text-[#8fa1bc]">@task.LastMessage</p>
+                                }
+
+                                <div class="mt-3 flex justify-end gap-2">
+                                    <button class="rounded-lg border border-sky-300/20 bg-sky-300/10 px-3 py-1.5 text-xs font-semibold text-sky-100 transition hover:bg-sky-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                            type="button"
+                                            disabled="@_isCreating"
+                                            @onclick="() => OpenEditMessageModal(task)">
+                                        Edit
+                                    </button>
+                                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                            type="button"
+                                            disabled="@(_removingTaskId == task.Id)"
+                                            @onclick="() => AskDeleteTask(task)">
+                                        @(_removingTaskId == task.Id ? "Deleting..." : "Delete")
+                                    </button>
+                                </div>
+                            </article>
+                        }
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                type="button"
+                                disabled="@(_automationPage <= 1)"
+                                @onclick="PreviousAutomationPageAsync">
+                            Previous
+                        </button>
+                        <span class="text-xs text-[#aab6c9]">@_totalAutomationCount total automations</span>
+                        <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                type="button"
+                                disabled="@(_automationPage >= TotalAutomationPages)"
+                                @onclick="NextAutomationPageAsync">
+                            Next
+                        </button>
+                    </div>
+                }
+            </section>
+        }
+    </div>
+
+    @if (_showMessageModal)
+    {
+        <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-6" @onclick="CloseMessageModal">
+            <section class="ui-scrollbar max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#101d2f] p-4 shadow-2xl shadow-black/50"
+                     @onclick:stopPropagation>
+                @MessageAutomationForm()
+            </section>
+        </div>
+    }
+
+    @if (_pendingDeleteTask is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+            <section class="w-full max-w-md rounded-2xl border border-white/10 bg-[#101d2f] p-4 shadow-2xl shadow-black/50">
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Confirm delete</p>
+                <h2 class="mt-2 text-base font-semibold text-white">@_pendingDeleteTask.DisplayName</h2>
+                <p class="mt-2 text-sm leading-6 text-[#aab6c9]">This automation will be permanently deleted.</p>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                            type="button"
+                            @onclick="CancelDelete">
+                        Cancel
+                    </button>
+                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled="@(_removingTaskId == _pendingDeleteTask.Id)"
+                            @onclick="ConfirmDeleteTaskAsync">
+                        @(_removingTaskId == _pendingDeleteTask.Id ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+</section>
+
+@code {
+    private const string AppPickerRootId = "automation-app-picker";
+    private static readonly DateTimeOffset DefaultScheduleTime = DateTimeOffset.Now.AddMinutes(5);
+    private const int AutomationPageSize = 6;
+    private static readonly AppOption[] DefaultAppOptions =
+    [
+        new("telegram", "Telegram Desktop", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Telegram Desktop", "Telegram.exe")),
+        new("whatsapp", "WhatsApp Desktop", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WhatsApp", "WhatsApp.exe")),
+        new("custom", "Custom app", string.Empty),
+    ];
+    private static readonly WeekDayOption[] WeekDays =
+    [
+        new(DayOfWeek.Sunday, "Sun"),
+        new(DayOfWeek.Monday, "Mon"),
+        new(DayOfWeek.Tuesday, "Tue"),
+        new(DayOfWeek.Wednesday, "Wed"),
+        new(DayOfWeek.Thursday, "Thu"),
+        new(DayOfWeek.Friday, "Fri"),
+        new(DayOfWeek.Saturday, "Sat"),
+    ];
+
+    private readonly List<ScheduledTaskItem> _messageTasks = new();
+    private readonly List<AppOption> _appOptions = DefaultAppOptions.ToList();
+    private readonly List<string> _recipientChips = new();
+    private string _title = "Scheduled message";
+    private string _appKey = string.Empty;
+    private string _appDisplayName = string.Empty;
+    private string _appPath = string.Empty;
+    private string _appSearchText = string.Empty;
+    private string _appFilterText = string.Empty;
+    private string _recipientDraft = string.Empty;
+    private string _messageText = string.Empty;
+    private string _taskSearchText = string.Empty;
+    private string _dateText = DefaultScheduleTime.ToString("yyyy-MM-dd");
+    private string _timeText = DefaultScheduleTime.ToString("HH:mm");
+    private string _repeatMode = ScheduledTask.NoRepeatMode;
+    private int _repeatDaysMask = DayMask(DateTimeOffset.Now.DayOfWeek);
+    private Guid? _editingTaskId;
+    private Guid? _removingTaskId;
+    private ScheduledTaskItem? _pendingDeleteTask;
+    private string? _errorMessage;
+    private bool _isCreating;
+    private bool _isRefreshing;
+    private bool _isInitialLoading = true;
+    private bool _isLoadingApps = true;
+    private bool _showAppOptions;
+    private bool _showMessageModal;
+    private bool _isLoadingVisibleIcons;
+    private int _automationPage = 1;
+    private int _totalAutomationCount;
+    private System.Threading.Timer? _timer;
+    private DotNetObjectReference<Automation>? _automationReference;
+
+    private int InstalledAppCount => _appOptions.Count(option => !option.IsCustom);
+    private int TotalAutomationPages => Math.Max(1, (int)Math.Ceiling(_totalAutomationCount / (double)AutomationPageSize));
+    private AppOption? _selectedApp => _appOptions.FirstOrDefault(app => app.Key.Equals(_appKey, StringComparison.OrdinalIgnoreCase));
+    private IReadOnlyList<AppOption> FilteredAppOptions => _appOptions.Where(MatchesAppSearch).Take(80).ToArray();
+
+    private RenderFragment AutomationSkeleton() => @<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 text-left shadow-xl shadow-black/20">
+        <div class="h-3 w-20 animate-pulse rounded bg-white/10"></div>
+        <div class="mt-3 h-5 w-44 animate-pulse rounded bg-white/12"></div>
+        <div class="mt-5 grid gap-3 md:grid-cols-3">
+            <div class="h-24 animate-pulse rounded-xl bg-black/20"></div>
+            <div class="h-24 animate-pulse rounded-xl bg-black/20"></div>
+            <div class="h-24 animate-pulse rounded-xl bg-black/20"></div>
+        </div>
+    </section>;
+
+    private RenderFragment ScheduledSkeleton() => @<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 text-left shadow-xl shadow-black/20">
+        <div class="h-3 w-20 animate-pulse rounded bg-white/10"></div>
+        <div class="mt-3 h-5 w-48 animate-pulse rounded bg-white/12"></div>
+        <div class="mt-5 grid gap-3 lg:grid-cols-2">
+            <div class="h-28 animate-pulse rounded-xl bg-black/20"></div>
+            <div class="h-28 animate-pulse rounded-xl bg-black/20"></div>
+        </div>
+    </section>;
+
+    private RenderFragment MessageAutomationForm() => @<div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">@(_editingTaskId is null ? "New task" : "Edit task")</p>
+                <h2 class="mt-1 text-base font-semibold text-white">Send a chat message</h2>
+            </div>
+            <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                    type="button"
+                    @onclick="CloseMessageModal">
+                Close
+            </button>
+        </div>
+
+        <div class="mt-4 grid gap-3 lg:grid-cols-2">
+            <label class="block">
+                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Title</span>
+                <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                       value="@_title"
+                       @oninput="args => _title = args.Value?.ToString() ?? string.Empty"
+                       disabled="@_isCreating" />
+            </label>
+
+            <div id="@AppPickerRootId" class="relative" @onclick:stopPropagation>
+                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">App</span>
+                <div class="mt-1 flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white focus-within:border-[#8ec5ff] focus-within:ring-4 focus-within:ring-[#8ec5ff]/10">
+                    @if (_selectedApp is not null)
+                    {
+                        @AppIcon(_selectedApp)
+                    }
+                    <input class="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[#8995ad]"
+                           placeholder="@(_isLoadingApps ? "Loading installed apps..." : "Search installed apps")"
+                           value="@_appSearchText"
+                           @onfocus="ShowAppOptions"
+                           @oninput="OnAppSearchChanged"
+                           @onkeydown="OnAppSearchKeyDown"
+                           disabled="@(_isCreating || _isLoadingApps)" />
+                </div>
+
+                @if (_showAppOptions && !_isLoadingApps)
+                {
+                    <div class="ui-scrollbar absolute right-0 left-0 z-50 mt-2 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-[#111b2e] p-1 shadow-2xl shadow-black/40">
+                        @if (FilteredAppOptions.Count == 0)
+                        {
+                            <p class="px-3 py-3 text-sm text-[#aab6c9]">No apps match your search.</p>
+                        }
+                        else
+                        {
+                            @foreach (var app in FilteredAppOptions)
+                            {
+                                <button class="@AppOptionClass(app)" type="button" @onmousedown:preventDefault @onclick="() => SelectApp(app)">
+                                    @AppIcon(app)
+                                    <span class="min-w-0">
+                                        <span class="block truncate text-sm font-semibold">@app.DisplayName</span>
+                                        <span class="block truncate font-mono text-[0.68rem] text-[#8fa1bc]">@AppPathText(app)</span>
+                                    </span>
+                                </button>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+
+            <label class="block lg:col-span-2">
+                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">App path</span>
+                <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 font-mono text-xs text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                       value="@_appPath"
+                       @oninput="args => _appPath = args.Value?.ToString() ?? string.Empty"
+                       disabled="@_isCreating" />
+            </label>
+
+            <div class="block">
+                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Recipients</span>
+                <div class="mt-1 flex min-h-11 w-full flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-2 py-2 text-sm text-white outline-none focus-within:border-[#8ec5ff] focus-within:ring-4 focus-within:ring-[#8ec5ff]/10">
+                    @foreach (var recipient in _recipientChips)
+                    {
+                        <span class="inline-flex max-w-full items-center gap-1 rounded-lg border border-sky-200/20 bg-sky-300/12 px-2 py-1 text-xs font-semibold text-sky-50">
+                            <span class="max-w-40 truncate">@recipient</span>
+                            <button class="grid size-5 place-items-center rounded-md text-sky-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                    type="button"
+                                    title="Remove recipient"
+                                    disabled="@_isCreating"
+                                    @onclick="() => RemoveRecipientChip(recipient)">
+                                x
+                            </button>
+                        </span>
+                    }
+                    <input class="min-w-36 flex-1 bg-transparent px-1 py-1 outline-none placeholder:text-[#8995ad]"
+                           placeholder="@(_recipientChips.Count == 0 ? "Type a name" : "Add another")"
+                           value="@_recipientDraft"
+                           @oninput="OnRecipientDraftChanged"
+                           @onkeyup="OnRecipientDraftKeyUp"
+                           disabled="@_isCreating" />
+                    <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            type="button"
+                            disabled="@(_isCreating || string.IsNullOrWhiteSpace(_recipientDraft))"
+                            @onclick="AddRecipientDraft">
+                        Add
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <label class="block">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Date</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           type="date"
+                           value="@_dateText"
+                           @oninput="args => _dateText = args.Value?.ToString() ?? string.Empty"
+                           disabled="@(_isCreating || _repeatMode == ScheduledTask.WeeklyRepeatMode)" />
+                </label>
+                <label class="block">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Time</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           type="time"
+                           value="@_timeText"
+                           @oninput="args => _timeText = args.Value?.ToString() ?? string.Empty"
+                           disabled="@_isCreating" />
+                </label>
+            </div>
+
+            <label class="block lg:col-span-2">
+                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Message</span>
+                <textarea class="mt-1 min-h-24 w-full resize-y rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                          value="@_messageText"
+                          @oninput="args => _messageText = args.Value?.ToString() ?? string.Empty"
+                          disabled="@_isCreating"></textarea>
+            </label>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+                <button class="@RepeatButtonClass(ScheduledTask.NoRepeatMode)" type="button" disabled="@_isCreating" @onclick="() => SetRepeatMode(ScheduledTask.NoRepeatMode)">One time</button>
+                <button class="@RepeatButtonClass(ScheduledTask.WeeklyRepeatMode)" type="button" disabled="@_isCreating" @onclick="() => SetRepeatMode(ScheduledTask.WeeklyRepeatMode)">Weekly</button>
+            </div>
+
+            <button class="rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:cursor-not-allowed disabled:bg-[#41506d] disabled:text-[#aab6c9]"
+                    type="button"
+                    disabled="@_isCreating"
+                    @onclick="SaveMessageAutomationAsync">
+                @(_isCreating ? "Saving..." : _editingTaskId is null ? "Create task" : "Reschedule task")
+            </button>
+        </div>
+
+        @if (_repeatMode == ScheduledTask.WeeklyRepeatMode)
+        {
+            <div class="mt-3 flex flex-wrap gap-2">
+                @foreach (var day in WeekDays)
+                {
+                    <label class="@DayClass(day.Day)">
+                        <input class="sr-only" type="checkbox" checked="@IsDaySelected(day.Day)" @onchange="args => OnDayChanged(day.Day, args)" disabled="@_isCreating" />
+                        @day.Label
+                    </label>
+                }
+            </div>
+        }
+    </div>;
+
+    protected override void OnInitialized()
+    {
+        _timer = new System.Threading.Timer(_ => _ = InvokeAsync(OnTimerTickAsync), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        _ = InvokeAsync(LoadInitialDataAsync);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_automationReference is null)
+        {
+            _automationReference = DotNetObjectReference.Create(this);
+        }
+
+        await JsRuntime.InvokeVoidAsync("pcAssistantAutomationPicker.bind", AppPickerRootId, _automationReference);
+    }
+
+    private async Task LoadInitialDataAsync()
+    {
+        try
+        {
+            await Task.WhenAll(LoadInstalledAppsAsync(), RefreshTasksAsync());
+        }
+        finally
+        {
+            _isInitialLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadInstalledAppsAsync()
+    {
+        _isLoadingApps = true;
+        try
+        {
+            var installedApps = await InstalledApps.ListInstalledAppsAsync();
+            var options = installedApps
+                .Where(app => !string.IsNullOrWhiteSpace(app.DisplayName) && !string.IsNullOrWhiteSpace(app.AppPath))
+                .GroupBy(app => app.AppPath, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.OrderBy(app => app.DisplayName).First())
+                .OrderBy(app => app.DisplayName)
+                .Select(app => new AppOption($"installed:{app.AppPath}", app.DisplayName, app.AppPath, app.IconSourcePath))
+                .ToList();
+
+            foreach (var fallback in DefaultAppOptions.Where(option => !option.IsCustom))
+            {
+                if (File.Exists(fallback.DefaultPath) && !options.Any(option => option.DefaultPath.Equals(fallback.DefaultPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    options.Add(fallback);
+                }
+            }
+
+            options.Add(DefaultAppOptions.Single(option => option.IsCustom));
+            _appOptions.Clear();
+            _appOptions.AddRange(options);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Could not load installed apps: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingApps = false;
+        }
+    }
+
+    private void OpenCreateMessageModal()
+    {
+        ResetMessageForm();
+        _showMessageModal = true;
+    }
+
+    private async Task OpenEditMessageModal(ScheduledTaskItem task)
+    {
+        _editingTaskId = task.Id;
+        _title = task.DisplayName;
+        _appDisplayName = task.AppDisplayName ?? string.Empty;
+        _appPath = task.AppPath ?? string.Empty;
+        _appSearchText = _appDisplayName;
+        _appFilterText = string.Empty;
+        _appKey = _appOptions.FirstOrDefault(option => option.DefaultPath.Equals(_appPath, StringComparison.OrdinalIgnoreCase))?.Key ?? string.Empty;
+        _recipientChips.Clear();
+        _recipientChips.AddRange(task.RecipientNames);
+        _recipientDraft = string.Empty;
+        _messageText = task.MessageText ?? string.Empty;
+        var local = task.ScheduledForUtc.ToLocalTime();
+        _dateText = local.ToString("yyyy-MM-dd");
+        _timeText = local.ToString("HH:mm");
+        _repeatMode = task.RepeatMode;
+        _repeatDaysMask = task.RepeatDaysOfWeek;
+        _showMessageModal = true;
+
+        if (_selectedApp is not null)
+        {
+            await LoadAppIconAsync(_selectedApp);
+        }
+    }
+
+    private void CloseMessageModal()
+    {
+        if (_isCreating)
+        {
+            return;
+        }
+
+        _showMessageModal = false;
+        _showAppOptions = false;
+        ResetMessageForm();
+    }
+
+    private void ResetMessageForm()
+    {
+        var scheduled = DateTimeOffset.Now.AddMinutes(5);
+        _editingTaskId = null;
+        _title = "Scheduled message";
+        _appKey = string.Empty;
+        _appDisplayName = string.Empty;
+        _appPath = string.Empty;
+        _appSearchText = string.Empty;
+        _appFilterText = string.Empty;
+        _recipientChips.Clear();
+        _recipientDraft = string.Empty;
+        _messageText = string.Empty;
+        _dateText = scheduled.ToString("yyyy-MM-dd");
+        _timeText = scheduled.ToString("HH:mm");
+        _repeatMode = ScheduledTask.NoRepeatMode;
+        _repeatDaysMask = DayMask(DateTimeOffset.Now.DayOfWeek);
+    }
+
+    private async Task SaveMessageAutomationAsync()
+    {
+        _isCreating = true;
+        _errorMessage = null;
+
+        try
+        {
+            var request = new ScheduleMessageAutomationRequest(
+                string.IsNullOrWhiteSpace(_title) ? "Scheduled message" : _title.Trim(),
+                _appPath.Trim(),
+                string.IsNullOrWhiteSpace(_appDisplayName) ? "Chat app" : _appDisplayName,
+                ParseRecipients(),
+                _messageText.Trim(),
+                BuildScheduleTime(),
+                _repeatMode,
+                _repeatMode == ScheduledTask.WeeklyRepeatMode ? _repeatDaysMask : 0);
+
+            if (_editingTaskId is Guid taskId)
+            {
+                await ScheduledTasks.RescheduleMessageAutomationAsync(taskId, request);
+            }
+            else
+            {
+                await ScheduledTasks.ScheduleMessageAutomationAsync(request);
+            }
+
+            _showMessageModal = false;
+            ResetMessageForm();
+            await RefreshTasksAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isCreating = false;
+        }
+    }
+
+    private void AskDeleteTask(ScheduledTaskItem task)
+    {
+        _pendingDeleteTask = task;
+    }
+
+    private void CancelDelete()
+    {
+        _pendingDeleteTask = null;
+    }
+
+    private async Task ConfirmDeleteTaskAsync()
+    {
+        if (_pendingDeleteTask is null)
+        {
+            return;
+        }
+
+        var task = _pendingDeleteTask;
+        {
+            _removingTaskId = task.Id;
+            _errorMessage = null;
+
+            try
+            {
+                await ScheduledTasks.DeleteTaskAsync(task.Id);
+                _pendingDeleteTask = null;
+                await RefreshTasksAsync();
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = ex.Message;
+            }
+            finally
+            {
+                _removingTaskId = null;
+            }
+        }
+    }
+
+    private async Task RefreshTasksAsync()
+    {
+        if (_isRefreshing)
+        {
+            return;
+        }
+
+        _isRefreshing = true;
+        try
+        {
+            await ScheduledTasks.CompleteDueTasksAsync();
+            var page = await ScheduledTasks.ListByTaskTypeAsync(ScheduledTask.MessageAutomationTaskType, _automationPage, AutomationPageSize, _taskSearchText);
+            _totalAutomationCount = page.TotalCount;
+            if (_automationPage > page.TotalPages)
+            {
+                _automationPage = page.TotalPages;
+                page = await ScheduledTasks.ListByTaskTypeAsync(ScheduledTask.MessageAutomationTaskType, _automationPage, AutomationPageSize, _taskSearchText);
+                _totalAutomationCount = page.TotalCount;
+            }
+
+            _messageTasks.Clear();
+            _messageTasks.AddRange(page.Items);
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    private async Task PreviousAutomationPageAsync()
+    {
+        _automationPage = Math.Max(1, _automationPage - 1);
+        await RefreshTasksAsync();
+    }
+
+    private async Task NextAutomationPageAsync()
+    {
+        _automationPage = Math.Min(TotalAutomationPages, _automationPage + 1);
+        await RefreshTasksAsync();
+    }
+
+    private async Task OnTaskSearchChanged(ChangeEventArgs args)
+    {
+        _taskSearchText = args.Value?.ToString() ?? string.Empty;
+        _automationPage = 1;
+        await RefreshTasksAsync();
+    }
+
+    private async Task ClearTaskSearchAsync()
+    {
+        _taskSearchText = string.Empty;
+        _automationPage = 1;
+        await RefreshTasksAsync();
+    }
+
+    private async Task OnTimerTickAsync()
+    {
+        if (_messageTasks.Any(task => task.QueueStatus == ScheduledTask.QueuedStatus && task.ScheduledForUtc <= DateTimeOffset.UtcNow))
+        {
+            await RefreshTasksAsync();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ShowAppOptions()
+    {
+        _appFilterText = string.Empty;
+        _showAppOptions = true;
+        await LoadVisibleAppIconsAsync();
+    }
+
+    private async Task OnAppSearchChanged(ChangeEventArgs args)
+    {
+        _appSearchText = args.Value?.ToString() ?? string.Empty;
+        _appFilterText = _appSearchText;
+        if (_selectedApp is not null && !_appSearchText.Equals(_selectedApp.DisplayName, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearSelectedApp(_appSearchText);
+        }
+
+        _showAppOptions = true;
+        await LoadVisibleAppIconsAsync();
+    }
+
+    private void OnAppSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Backspace" && _selectedApp is not null)
+        {
+            ClearSelectedApp();
+            _showAppOptions = true;
+        }
+    }
+
+    private void OnRecipientDraftChanged(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString() ?? string.Empty;
+        if (value.IndexOfAny([',', ';', '\r', '\n']) < 0)
+        {
+            _recipientDraft = value;
+            return;
+        }
+
+        AddRecipientTokens(value, keepLastTokenAsDraft: true);
+    }
+
+    private void OnRecipientDraftKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter")
+        {
+            AddRecipientDraft();
+        }
+    }
+
+    private void AddRecipientDraft()
+    {
+        AddRecipientTokens(_recipientDraft, keepLastTokenAsDraft: false);
+    }
+
+    private void AddRecipientTokens(string value, bool keepLastTokenAsDraft)
+    {
+        var tokens = value.Split([',', ';', '\r', '\n'], StringSplitOptions.None);
+        var limit = keepLastTokenAsDraft ? tokens.Length - 1 : tokens.Length;
+        for (var index = 0; index < limit; index++)
+        {
+            AddRecipientChip(tokens[index]);
+        }
+
+        _recipientDraft = keepLastTokenAsDraft && tokens.Length > 0 ? tokens[^1] : string.Empty;
+    }
+
+    private void AddRecipientChip(string value)
+    {
+        var normalized = value.Trim();
+        if (!string.IsNullOrWhiteSpace(normalized) && !_recipientChips.Any(recipient => recipient.Equals(normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            _recipientChips.Add(normalized);
+        }
+    }
+
+    private void RemoveRecipientChip(string recipient)
+    {
+        _recipientChips.RemoveAll(item => item.Equals(recipient, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void CloseAppOptions()
+    {
+        _showAppOptions = false;
+    }
+
+    [JSInvokable]
+    public Task CloseAppOptionsFromOutsideAsync()
+    {
+        _showAppOptions = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task SelectApp(AppOption selectedApp)
+    {
+        ApplySelectedApp(selectedApp);
+        await LoadAppIconAsync(selectedApp);
+        _showAppOptions = false;
+    }
+
+    private void ApplySelectedApp(AppOption selectedApp)
+    {
+        _appKey = selectedApp.Key;
+        _appDisplayName = selectedApp.DisplayName;
+        _appSearchText = selectedApp.DisplayName;
+        _appFilterText = string.Empty;
+        if (!string.IsNullOrWhiteSpace(selectedApp.DefaultPath))
+        {
+            _appPath = selectedApp.DefaultPath;
+        }
+    }
+
+    private void ClearSelectedApp(string searchText = "")
+    {
+        _appKey = string.Empty;
+        _appDisplayName = string.Empty;
+        _appPath = string.Empty;
+        _appSearchText = searchText;
+        _appFilterText = searchText;
+    }
+
+    private bool MatchesAppSearch(AppOption app)
+    {
+        return string.IsNullOrWhiteSpace(_appFilterText)
+            || app.DisplayName.Contains(_appFilterText, StringComparison.OrdinalIgnoreCase)
+            || app.DefaultPath.Contains(_appFilterText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task LoadVisibleAppIconsAsync()
+    {
+        if (_isLoadingVisibleIcons)
+        {
+            return;
+        }
+
+        var visibleApps = FilteredAppOptions.Where(app => !app.IsCustom && string.IsNullOrWhiteSpace(app.IconDataUrl)).Take(24).ToArray();
+        if (visibleApps.Length == 0)
+        {
+            return;
+        }
+
+        _isLoadingVisibleIcons = true;
+        try
+        {
+            foreach (var app in visibleApps)
+            {
+                await LoadAppIconAsync(app);
+            }
+        }
+        finally
+        {
+            _isLoadingVisibleIcons = false;
+        }
+    }
+
+    private async Task LoadAppIconAsync(AppOption app)
+    {
+        if (!app.IsCustom && string.IsNullOrWhiteSpace(app.IconDataUrl))
+        {
+            app.IconDataUrl = await InstalledApps.GetAppIconDataUrlAsync(app.DefaultPath, app.IconSourcePath);
+        }
+    }
+
+    private void SetRepeatMode(string repeatMode)
+    {
+        _repeatMode = repeatMode == ScheduledTask.WeeklyRepeatMode ? ScheduledTask.WeeklyRepeatMode : ScheduledTask.NoRepeatMode;
+        if (_repeatMode == ScheduledTask.WeeklyRepeatMode && _repeatDaysMask == 0)
+        {
+            _repeatDaysMask = DayMask(DateTimeOffset.Now.DayOfWeek);
+        }
+    }
+
+    private void OnDayChanged(DayOfWeek day, ChangeEventArgs args)
+    {
+        var selected = args.Value is bool boolValue && boolValue;
+        var mask = DayMask(day);
+        _repeatDaysMask = selected ? _repeatDaysMask | mask : _repeatDaysMask & ~mask;
+    }
+
+    private bool IsDaySelected(DayOfWeek day)
+    {
+        return (_repeatDaysMask & DayMask(day)) != 0;
+    }
+
+    private DateTimeOffset BuildScheduleTime()
+    {
+        if (!TimeOnly.TryParse(_timeText, out var time))
+        {
+            throw new InvalidOperationException("Choose a valid automation time.");
+        }
+
+        var date = DateOnly.TryParse(_dateText, out var parsedDate) ? parsedDate : DateOnly.FromDateTime(DateTime.Now);
+        return new DateTimeOffset(date.ToDateTime(time), DateTimeOffset.Now.Offset);
+    }
+
+    private IReadOnlyList<string> ParseRecipients()
+    {
+        AddRecipientDraft();
+        var recipients = _recipientChips.ToArray();
+        if (recipients.Length == 0)
+        {
+            throw new InvalidOperationException("Add at least one recipient.");
+        }
+
+        return recipients;
+    }
+
+    private RenderFragment AppIcon(AppOption? app) => @<span class="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/10 text-xs font-bold text-[#dce9ff]">
+        @if (!string.IsNullOrWhiteSpace(app?.IconDataUrl))
+        {
+            <img class="size-5 object-contain" src="@app.IconDataUrl" alt="" />
+        }
+        else
+        {
+            @AppInitial(app)
+        }
+    </span>;
+
+    private string AppOptionClass(AppOption app)
+    {
+        return app.Key.Equals(_appKey, StringComparison.OrdinalIgnoreCase)
+            ? "flex w-full items-center gap-3 rounded-lg bg-[#8ec5ff]/16 px-3 py-2 text-left text-white"
+            : "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[#d9e2f1] transition hover:bg-white/8 hover:text-white";
+    }
+
+    private static string AppPathText(AppOption app) => app.IsCustom ? "Enter a custom executable path" : app.DefaultPath;
+    private static string AppInitial(AppOption? app) => string.IsNullOrWhiteSpace(app?.DisplayName) ? "?" : app.DisplayName.Trim()[0].ToString().ToUpperInvariant();
+    private string RepeatButtonClass(string repeatMode) => _repeatMode == repeatMode
+        ? "rounded-xl bg-[#dce9ff] px-3 py-2 text-xs font-semibold text-[#0b1427] transition"
+        : "rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-60";
+    private string DayClass(DayOfWeek day) => IsDaySelected(day)
+        ? "cursor-pointer rounded-xl bg-[#8ec5ff] px-3 py-2 text-xs font-semibold text-[#07111f]"
+        : "cursor-pointer rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-[#d9e2f1] hover:bg-white/10";
+    private static string FormatSchedule(ScheduledTaskItem task) => task.ScheduledForUtc.ToLocalTime().ToString("MMM d, h:mm tt");
+    private static string FormatRepeat(ScheduledTaskItem task) => task.RepeatMode == ScheduledTask.WeeklyRepeatMode ? "Weekly" : "One time";
+    private static string FormatRecipients(IReadOnlyList<string> recipients) => recipients.Count == 0 ? "No recipients" : string.Join(", ", recipients);
+    private static string FormatStatus(ScheduledTaskItem task) => task.QueueStatus == ScheduledTask.QueuedStatus ? FormatCountdown(task) : task.QueueStatus;
+    private static string FormatCountdown(ScheduledTaskItem task)
+    {
+        var remaining = task.ScheduledForUtc - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return "Due now";
+        }
+
+        return remaining.TotalMinutes >= 1 ? $"{(int)remaining.TotalMinutes:D2}:{remaining.Seconds:D2}" : $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds))}s";
+    }
+    private static string StatusClass(ScheduledTaskItem task)
+    {
+        var baseClass = "rounded-full px-3 py-1 text-xs font-semibold";
+        return task.QueueStatus switch
+        {
+            ScheduledTask.CompletedStatus => $"{baseClass} bg-emerald-300/12 text-emerald-100 ring-1 ring-emerald-300/25",
+            ScheduledTask.FailedStatus => $"{baseClass} bg-rose-300/12 text-rose-100 ring-1 ring-rose-300/25",
+            ScheduledTask.CancelledStatus => $"{baseClass} bg-white/10 text-[#aab6c9] ring-1 ring-white/10",
+            _ => $"{baseClass} bg-sky-300/10 text-sky-100 ring-1 ring-sky-300/25",
+        };
+    }
+    private static int DayMask(DayOfWeek dayOfWeek) => 1 << (int)dayOfWeek;
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _automationReference?.Dispose();
+    }
+
+    
+}

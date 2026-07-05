@@ -1,7 +1,12 @@
 using Autofac;
 using Microsoft.EntityFrameworkCore;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Repositories;
+using PcAssistant.Application.Abstractions.Services;
+using PcAssistant.Application.Abstractions.UnitOfWorks;
 using PcAssistant.Application.UseCases;
+using PcAssistant.Persistence.Database;
+using PcAssistant.Persistence.Repositories;
+using PcAssistant.Persistence.UnitOfWork;
 
 namespace PcAssistant.Persistence.DependencyInjection;
 
@@ -15,21 +20,45 @@ public sealed class PcAssistantPersistenceModule(string databasePath) : Module
             new DbContextOptionsBuilder<PcAssistantDbContext>()
                 .UseSqlite(connectionString)
                 .Options)
-            .SingleInstance();
+            .InstancePerLifetimeScope();
 
-        builder.RegisterType<PcAssistantDbContextFactory>()
-            .As<IDbContextFactory<PcAssistantDbContext>>()
-            .SingleInstance();
+        builder.RegisterType<SqliteProviderBootstrapper>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<PcAssistantDbContext>()
+            .AsSelf()
+            .As<IPcAssistantDbContext>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<EfChatSessionRepository>()
+            .As<IChatSessionRepository>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<EfCommandLogRepository>()
+            .As<ICommandLogRepository>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<EfScheduledTaskRepository>()
+            .As<IScheduledTaskRepository>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<CommandHistoryUnitOfWork>()
+            .AsSelf()
+            .InstancePerLifetimeScope();
 
         builder.RegisterType<CommandHistoryUnitOfWorkFactory>()
             .As<ICommandHistoryUnitOfWorkFactory>()
-            .SingleInstance();
+            .InstancePerLifetimeScope();
 
         builder.RegisterType<CommandHistoryService>()
             .As<ICommandHistoryService>()
-            .SingleInstance();
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<ScheduledTaskService>()
+            .As<IScheduledTaskService>()
+            .InstancePerLifetimeScope();
 
         builder.RegisterType<PcAssistantDatabaseInitializer>()
-            .SingleInstance();
+            .InstancePerLifetimeScope();
     }
 }

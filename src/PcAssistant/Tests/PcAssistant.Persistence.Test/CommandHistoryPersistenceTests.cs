@@ -1,8 +1,8 @@
 using Autofac;
 using Microsoft.Data.Sqlite;
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
-using PcAssistant.Persistence;
+using PcAssistant.Persistence.Database;
 using PcAssistant.Persistence.DependencyInjection;
 using Shouldly;
 
@@ -41,7 +41,9 @@ public sealed class CommandHistoryPersistenceTests
     public async Task ListRecentAsync_orders_command_history_with_sqlite_timestamp_conversion()
     {
         var history = _container.Resolve<ICommandHistoryService>();
+        var chat = await history.CreateChatAsync();
         var first = await history.RecordPredictionAsync(
+            chat.Id,
             "open settings",
             CreateResponse("unknown", 0.89),
             CreateParsedCommand("open settings", "unknown"),
@@ -50,6 +52,7 @@ public sealed class CommandHistoryPersistenceTests
             lowConfidenceRequiresConfirmation: false);
         await Task.Delay(10);
         var second = await history.RecordPredictionAsync(
+            chat.Id,
             "restart pc",
             CreateResponse("system.restart", 0.95),
             CreateParsedCommand("restart pc", "system.restart"),
@@ -60,6 +63,74 @@ public sealed class CommandHistoryPersistenceTests
         var recent = await history.ListRecentAsync(50);
 
         recent.Select(item => item.Id).ShouldBe(new[] { first.Id, second.Id });
+    }
+
+    [Test]
+    public async Task Chat_sessions_can_be_loaded_and_deleted_with_their_messages()
+    {
+        var history = _container.Resolve<ICommandHistoryService>();
+        var firstChat = await history.CreateChatAsync();
+        var secondChat = await history.CreateChatAsync();
+
+        await history.RecordPredictionAsync(
+            firstChat.Id,
+            "create reports folder",
+            CreateResponse("filesystem.create_folder", 0.93),
+            CreateParsedCommand("create reports folder", "filesystem.create_folder"),
+            "filesystem.create_folder",
+            "Create folder Reports.",
+            lowConfidenceRequiresConfirmation: false);
+
+        var loaded = await history.GetChatAsync(firstChat.Id);
+        loaded.Summary.Title.ShouldBe("create reports folder");
+        loaded.Messages.Count.ShouldBe(1);
+        loaded.Messages[0].ChatSessionId.ShouldBe(firstChat.Id);
+
+        var chats = await history.ListChatsAsync();
+        chats.Select(chat => chat.Id).ShouldContain(firstChat.Id);
+        chats.Select(chat => chat.Id).ShouldContain(secondChat.Id);
+
+        await history.DeleteChatAsync(firstChat.Id);
+
+        var remainingChats = await history.ListChatsAsync();
+        remainingChats.Select(chat => chat.Id).ShouldNotContain(firstChat.Id);
+        remainingChats.Select(chat => chat.Id).ShouldContain(secondChat.Id);
+    }
+
+    [Test]
+    public async Task GetChatAsync_paginates_messages_from_newest_to_older_pages()
+    {
+        var history = _container.Resolve<ICommandHistoryService>();
+        var chat = await history.CreateChatAsync();
+
+        var messages = new List<CommandHistoryItem>();
+        for (var index = 1; index <= 5; index++)
+        {
+            messages.Add(await history.RecordPredictionAsync(
+                chat.Id,
+                $"message {index}",
+                CreateResponse("unknown", 0.89),
+                CreateParsedCommand($"message {index}", "unknown"),
+                "unknown",
+                "I could not understand this as a PC command. Please rephrase it.",
+                lowConfidenceRequiresConfirmation: false));
+            await Task.Delay(5);
+        }
+
+        var newestPage = await history.GetChatAsync(chat.Id, messageCount: 2);
+
+        newestPage.Messages.Select(message => message.UserText).ShouldBe(["message 4", "message 5"]);
+        newestPage.HasOlderMessages.ShouldBeTrue();
+        newestPage.OlderThanUtc?.ToUnixTimeMilliseconds().ShouldBe(messages[3].CreatedAtUtc.ToUnixTimeMilliseconds());
+
+        var olderPage = await history.GetChatAsync(
+            chat.Id,
+            messageCount: 2,
+            beforeCreatedAtUtc: newestPage.OlderThanUtc);
+
+        olderPage.Messages.Select(message => message.UserText).ShouldBe(["message 2", "message 3"]);
+        olderPage.HasOlderMessages.ShouldBeTrue();
+        olderPage.OlderThanUtc?.ToUnixTimeMilliseconds().ShouldBe(messages[1].CreatedAtUtc.ToUnixTimeMilliseconds());
     }
 
     private static CommandResponse CreateResponse(string label, double confidence)

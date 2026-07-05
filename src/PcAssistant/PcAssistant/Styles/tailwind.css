@@ -8,3 +8,79 @@
 @source "../**/*.cs";
 @source not "../bin";
 @source not "../obj";
+
+@layer components {
+    .assistant-shell {
+        scrollbar-color: rgba(142, 197, 255, 0.42) rgba(8, 13, 25, 0.24);
+        scrollbar-width: thin;
+    }
+
+    .assistant-shell * {
+        scrollbar-width: thin;
+    }
+
+    .assistant-shell *::-webkit-scrollbar {
+        width: 0.55rem;
+        height: 0.55rem;
+    }
+
+    .assistant-shell *::-webkit-scrollbar-track {
+        background: rgba(8, 13, 25, 0.18);
+        border-radius: 999px;
+    }
+
+    .assistant-shell *::-webkit-scrollbar-thumb {
+        min-height: 2.75rem;
+        border: 2px solid transparent;
+        border-radius: 999px;
+        background:
+            linear-gradient(180deg, rgba(142, 197, 255, 0.82), rgba(104, 120, 255, 0.62))
+            border-box;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    }
+
+    .assistant-shell *::-webkit-scrollbar-thumb:hover {
+        background:
+            linear-gradient(180deg, rgba(184, 222, 255, 0.96), rgba(132, 146, 255, 0.82))
+            border-box;
+    }
+
+    .assistant-shell *::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+
+    .ui-scrollbar {
+        scrollbar-color: rgba(142, 197, 255, 0.48) rgba(8, 13, 25, 0.28);
+        scrollbar-width: thin;
+    }
+
+    .ui-scrollbar::-webkit-scrollbar {
+        width: 0.55rem;
+        height: 0.55rem;
+    }
+
+    .ui-scrollbar::-webkit-scrollbar-track {
+        border-radius: 999px;
+        background: rgba(7, 19, 33, 0.48);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .ui-scrollbar::-webkit-scrollbar-thumb {
+        min-height: 2.75rem;
+        border: 2px solid rgba(7, 19, 33, 0.75);
+        border-radius: 999px;
+        background:
+            linear-gradient(180deg, rgba(142, 197, 255, 0.9), rgba(77, 151, 214, 0.72))
+            padding-box;
+    }
+
+    .ui-scrollbar::-webkit-scrollbar-thumb:hover {
+        background:
+            linear-gradient(180deg, rgba(198, 230, 255, 0.98), rgba(104, 177, 238, 0.86))
+            padding-box;
+    }
+
+    .ui-scrollbar::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+}

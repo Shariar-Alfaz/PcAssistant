@@ -13,7 +13,8 @@ public sealed class AssistantHistoryItem
         string assistantMessage,
         string? resolvedPath,
         string executionStatus,
-        string? executionMessage)
+        string? executionMessage,
+        DateTimeOffset createdAtUtc)
     {
         Id = id;
         UserText = userText;
@@ -24,6 +25,7 @@ public sealed class AssistantHistoryItem
         ResolvedPath = resolvedPath;
         ExecutionStatus = executionStatus;
         ExecutionMessage = executionMessage;
+        CreatedAtUtc = createdAtUtc;
     }
 
     public Guid Id { get; }
@@ -44,6 +46,8 @@ public sealed class AssistantHistoryItem
 
     public string? ExecutionMessage { get; }
 
+    public DateTimeOffset CreatedAtUtc { get; }
+
     public static AssistantHistoryItem FromCommandHistory(CommandHistoryItem item)
     {
         return new AssistantHistoryItem(
@@ -55,6 +59,7 @@ public sealed class AssistantHistoryItem
             item.AssistantMessage,
             item.ResolvedPath,
             item.ExecutionStatus,
-            item.ExecutionMessage);
+            item.ExecutionMessage,
+            item.CreatedAtUtc);
     }
 }

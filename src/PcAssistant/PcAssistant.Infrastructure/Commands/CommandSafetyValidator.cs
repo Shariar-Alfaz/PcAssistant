@@ -1,4 +1,4 @@
-using PcAssistant.Application.Abstractions;
+using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
 
 namespace PcAssistant.Infrastructure.Commands;

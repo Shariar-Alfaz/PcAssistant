@@ -1,34 +1,212 @@
-<div class="flex h-full flex-col gap-5">
-    <a class="group flex items-center gap-3" href="">
-        <span class="flex size-12 items-center justify-center rounded-3xl bg-slate-950 text-sm font-black text-white shadow-xl shadow-slate-950/20 transition group-hover:scale-[1.03] dark:bg-white dark:text-slate-950 dark:shadow-cyan-400/10">PA</span>
-        <span>
-            <span class="block text-lg font-black text-slate-950 dark:text-white">PcAssistant</span>
-            <span class="block text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Control OS</span>
-        </span>
-    </a>
+@inject ICommandHistoryService CommandHistory
+@inject NavigationManager Navigation
+@using PcAssistant.Application.Abstractions.Services
+@implements IDisposable
 
-    <nav class="flex flex-wrap gap-2 lg:flex-col">
-        <NavLink class="nav-link group" ActiveClass="nav-link-active" href="" Match="NavLinkMatch.All">
-            <span class="nav-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                    <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                </svg>
-            </span>
-            <span>Home</span>
-        </NavLink>
-        <NavLink class="nav-link group" ActiveClass="nav-link-active" href="assistant">
-            <span class="nav-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                    <path d="M5 8.5A3.5 3.5 0 0 1 8.5 5h7A3.5 3.5 0 0 1 19 8.5v4A3.5 3.5 0 0 1 15.5 16H13l-4 3v-3h-.5A3.5 3.5 0 0 1 5 12.5v-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                    <path d="M9 10.5h6M9 13h3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                </svg>
-            </span>
-            <span>Assistant</span>
+<aside class="@SidebarClass">
+    <div class="flex items-center justify-between px-2">
+        <a class="@SidebarBrandClass" href="">
+            <img class="size-8 shrink-0 rounded-lg" src="images/appicon.png" alt="" />
+            <span class="@SidebarBrandTextClass">PcAssistant</span>
+        </a>
+        <button class="flex size-8 items-center justify-center rounded-lg text-[#c9d2e3] transition hover:bg-white/10"
+                type="button"
+                title="@SidebarToggleTitle"
+                @onclick="ToggleSidebar">
+            <svg class="@SidebarToggleIconClass" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 5h14v14H5V5Zm5 0v14" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+            </svg>
+        </button>
+    </div>
+
+    <nav class="mt-7 space-y-2">
+        <button class="copilot-nav-item w-full"
+                type="button"
+                title="New chat"
+                @onclick="NewChatAsync">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 14H5.17L4 17.17V4h16v12Zm-9-2h2v-3h3V9h-3V6h-2v3H8v2h3v3Z" />
+            </svg>
+            <span class="@SidebarTextClass">New chat</span>
+        </button>
+
+        <NavLink class="copilot-nav-item w-full"
+                 ActiveClass="bg-white/10 text-white"
+                 href="automation"
+                 title="Automation">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M7 4.5v3m10-3v3M5.5 10h13M6 6h12a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 18 19H6a1.5 1.5 0 0 1-1.5-1.5v-10A1.5 1.5 0 0 1 6 6Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="m9 14 2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="@SidebarTextClass">Automation</span>
         </NavLink>
     </nav>
 
-    <div class="mt-auto hidden rounded-3xl border border-cyan-200/80 bg-cyan-50/80 p-4 text-sm text-cyan-950 shadow-sm dark:border-cyan-400/20 dark:bg-cyan-400/10 dark:text-cyan-100 lg:block">
-        <p class="font-black">Execution guard</p>
-        <p class="mt-1 text-cyan-700 dark:text-cyan-200/80">Predictions, confirmations, and results are saved as chat history.</p>
+    <div class="@SidebarFullOnlyClass">
+        <div class="mt-5 h-px bg-white/18"></div>
+
+        <div class="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+            @if (_isLoading)
+            {
+                <p class="px-2 py-2 text-sm text-[#9da8ba]">Loading chats...</p>
+            }
+            else if (_chats.Count == 0)
+            {
+                <p class="px-2 py-2 text-sm text-[#9da8ba]">No chats yet.</p>
+            }
+            else
+            {
+                @foreach (var chat in _chats)
+                {
+                    <div class="@ChatRowClass(chat.Id)">
+                        <a class="min-w-0 flex-1 truncate text-left"
+                           href="@ChatHref(chat.Id)"
+                           title="@chat.Title">
+                            @chat.Title
+                        </a>
+                        <button class="flex size-7 shrink-0 items-center justify-center rounded-md text-[#9da8ba] opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-rose-200"
+                                type="button"
+                                title="Delete chat"
+                                @onclick="() => DeleteChatAsync(chat.Id)">
+                            <svg class="size-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M6 7h12m-9 0V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m-7 0 .7 12h6.6L16 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                    </div>
+                }
+            }
+        </div>
     </div>
-</div>
+
+    <div class="@SidebarProfileClass">
+        <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#33415f] text-sm font-semibold text-white">S</span>
+        <span class="@SidebarProfileTextClass">
+            <span class="block truncate text-sm font-semibold text-white">Shariar</span>
+            <span class="block truncate text-xs text-[#a8b2c4]">Local assistant</span>
+        </span>
+    </div>
+</aside>
+
+@code {
+    private readonly List<ChatSessionSummary> _chats = new();
+    private bool _isLoading = true;
+    private bool _isSidebarCollapsed;
+
+    private string SidebarClass => _isSidebarCollapsed
+        ? "copilot-sidebar copilot-sidebar-collapsed flex h-screen min-h-0 w-[4.75rem] min-w-0 flex-col overflow-hidden bg-[#0d101a] px-3 py-4 text-[#d8deeb]"
+        : "copilot-sidebar flex h-screen min-h-0 w-[16.75rem] min-w-0 flex-col overflow-hidden bg-[#0d101a] px-3 py-4 text-[#d8deeb]";
+
+    private string SidebarBrandClass => _isSidebarCollapsed
+        ? "flex min-w-0 items-center gap-0 overflow-hidden whitespace-nowrap text-lg font-semibold tracking-normal text-white"
+        : "flex min-w-0 items-center gap-3 text-lg font-semibold tracking-normal text-white";
+
+    private string SidebarBrandTextClass => _isSidebarCollapsed
+        ? "w-0 overflow-hidden opacity-0"
+        : "min-w-0 truncate opacity-100";
+
+    private string SidebarTextClass => _isSidebarCollapsed
+        ? "w-0 overflow-hidden whitespace-nowrap opacity-0"
+        : "min-w-0 truncate opacity-100";
+
+    private string SidebarFullOnlyClass => _isSidebarCollapsed
+        ? "hidden"
+        : "flex min-h-0 flex-1 flex-col";
+
+    private string SidebarProfileClass => _isSidebarCollapsed
+        ? "mt-auto flex items-center justify-center rounded-2xl px-2 py-2"
+        : "mt-4 flex items-center gap-3 rounded-2xl px-2 py-2";
+
+    private string SidebarProfileTextClass => _isSidebarCollapsed
+        ? "hidden"
+        : "min-w-0 flex-1";
+
+    private string SidebarToggleTitle => _isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
+
+    private string SidebarToggleIconClass => _isSidebarCollapsed
+        ? "size-5 rotate-180 transition-transform duration-300"
+        : "size-5 transition-transform duration-300";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        await LoadChatsAsync();
+    }
+
+    private async Task LoadChatsAsync()
+    {
+        _isLoading = true;
+        var chats = await CommandHistory.ListChatsAsync();
+        _chats.Clear();
+        _chats.AddRange(chats);
+        _isLoading = false;
+    }
+
+    private async Task NewChatAsync()
+    {
+        var chat = await CommandHistory.CreateChatAsync();
+        await LoadChatsAsync();
+        Navigation.NavigateTo(ChatHref(chat.Id));
+    }
+
+    private async Task DeleteChatAsync(Guid chatId)
+    {
+        await CommandHistory.DeleteChatAsync(chatId);
+        await LoadChatsAsync();
+        if (CurrentChatId == chatId)
+        {
+            Navigation.NavigateTo(_chats.Count == 0 ? "" : ChatHref(_chats[0].Id));
+        }
+    }
+
+    private void ToggleSidebar()
+    {
+        _isSidebarCollapsed = !_isSidebarCollapsed;
+    }
+
+    private string ChatRowClass(Guid chatId)
+    {
+        return CurrentChatId == chatId
+            ? "group flex min-h-9 items-center gap-2 rounded-lg bg-white/10 px-2 text-sm font-semibold text-white"
+            : "group flex min-h-9 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#c9d2e3] transition hover:bg-white/8 hover:text-white";
+    }
+
+    private static string ChatHref(Guid chatId)
+    {
+        return $"/?chatId={chatId}";
+    }
+
+    private Guid? CurrentChatId
+    {
+        get
+        {
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            var query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in query)
+            {
+                var pieces = part.Split('=', 2);
+                if (pieces.Length == 2
+                    && pieces[0].Equals("chatId", StringComparison.OrdinalIgnoreCase)
+                    && Guid.TryParse(Uri.UnescapeDataString(pieces[1]), out var chatId))
+                {
+                    return chatId;
+                }
+            }
+
+            return null;
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadChatsAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}
