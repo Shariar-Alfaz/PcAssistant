@@ -1,0 +1,72 @@
+<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Run logs</p>
+    <h2 class="mt-1 text-base font-semibold text-white">History</h2>
+
+    @if (Logs.Count == 0)
+    {
+        <p class="mt-4 rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">No runs yet.</p>
+    }
+    else
+    {
+        <div class="ui-scrollbar mt-4 grid max-h-[30rem] gap-3 overflow-y-auto pr-1">
+            @foreach (var run in Logs)
+            {
+                <article class="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">@run.Status</h3>
+                            <p class="mt-1 text-xs text-[#8fa1bc]">@run.StartedAtUtc.ToLocalTime().ToString("MMM d, h:mm tt")</p>
+                        </div>
+                        <span class="@StatusClass(run.Status.ToString())">@run.StepLogs.Count step(s)</span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(run.ErrorMessage))
+                    {
+                        <p class="mt-2 rounded-lg bg-rose-950/60 px-2 py-1 text-xs text-rose-100">@run.ErrorMessage</p>
+                    }
+                    <div class="mt-3 grid gap-2">
+                        @foreach (var log in run.StepLogs.OrderBy(log => log.OrderIndex))
+                        {
+                            <div class="rounded-lg bg-white/5 px-2 py-2 text-xs">
+                                <div class="flex justify-between gap-2">
+                                    <span class="font-semibold text-white">#@log.OrderIndex @log.Status</span>
+                                    @if (!string.IsNullOrWhiteSpace(log.ScreenshotPath))
+                                    {
+                                        <span class="truncate text-[#8fa1bc]" title="@log.ScreenshotPath">Screenshot</span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(log.Message))
+                                {
+                                    <p class="mt-1 text-[#aab6c9]">@log.Message</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(log.ErrorMessage))
+                                {
+                                    <p class="mt-1 text-rose-100">@log.ErrorMessage</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(log.ExtractedValue))
+                                {
+                                    <p class="mt-1 rounded bg-black/20 px-2 py-1 text-[#d9e2f1]">@log.ExtractedValue</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<WebAutomationRunDto> Logs { get; set; } = Array.Empty<WebAutomationRunDto>();
+
+    private static string StatusClass(string status)
+    {
+        var baseClass = "rounded-full px-3 py-1 text-xs font-semibold";
+        return status switch
+        {
+            "Completed" => $"{baseClass} bg-emerald-300/12 text-emerald-100 ring-1 ring-emerald-300/25",
+            "Failed" => $"{baseClass} bg-rose-300/12 text-rose-100 ring-1 ring-rose-300/25",
+            "Cancelled" => $"{baseClass} bg-white/10 text-[#aab6c9] ring-1 ring-white/10",
+            _ => $"{baseClass} bg-sky-300/10 text-sky-100 ring-1 ring-sky-300/25",
+        };
+    }
+}

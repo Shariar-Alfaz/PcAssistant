@@ -1,0 +1,166 @@
+@using PcAssistant.Domain.Enums
+
+<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Properties</p>
+    <h2 class="mt-1 text-base font-semibold text-white">Step editor</h2>
+
+    @if (Step is null)
+    {
+        <p class="mt-4 rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">Select a step.</p>
+    }
+    else
+    {
+        <div class="mt-4 grid gap-3">
+            <label class="block">
+                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Type</span>
+                <select class="@SelectClass"
+                        value="@_stepType"
+                        @onchange="args => _stepType = Enum.Parse<WebAutomationStepType>(args.Value?.ToString() ?? nameof(WebAutomationStepType.Click))">
+                    @foreach (var type in Enum.GetValues<WebAutomationStepType>())
+                    {
+                        <option class="bg-[#111b2e] text-white" value="@type">@type</option>
+                    }
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Selector type</span>
+                <select class="@SelectClass"
+                        value="@_selectorType"
+                        @onchange="args => _selectorType = Enum.Parse<WebSelectorType>(args.Value?.ToString() ?? nameof(WebSelectorType.Css))">
+                    @foreach (var type in Enum.GetValues<WebSelectorType>())
+                    {
+                        <option class="bg-[#111b2e] text-white" value="@type">@type</option>
+                    }
+                </select>
+            </label>
+            @Field("Selector", _selector, value => _selector = value)
+            @Field("Value", _value, value => _value = value)
+            @Field("URL", _url, value => _url = value)
+            @Field("Description", _description, value => _description = value)
+            <div class="grid grid-cols-3 gap-2">
+                @NumberField("Timeout", _timeoutMs, value => _timeoutMs = value)
+                @NumberField("Delay", _delayAfterMs, value => _delayAfterMs = value)
+                @NumberField("Retry", _retryCount, value => _retryCount = value)
+            </div>
+            <label class="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white">
+                <input type="checkbox" checked="@_isOptional" @onchange="args => _isOptional = args.Value is bool value && value" />
+                Optional
+            </label>
+            <label class="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white">
+                <input type="checkbox" checked="@_takeScreenshot" @onchange="args => _takeScreenshot = args.Value is bool value && value" />
+                Screenshot after step
+            </label>
+            <div class="flex gap-2">
+                <button class="flex-1 rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white"
+                        type="button"
+                        @onclick="SaveAsync">
+                    Save
+                </button>
+                <button class="rounded-xl border border-sky-300/20 bg-sky-300/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-300/15"
+                        type="button"
+                        @onclick="RunStepAsync">
+                    Test
+                </button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public WebAutomationStepDto? Step { get; set; }
+    [Parameter] public EventCallback<UpdateWebAutomationStepRequest> OnStepChanged { get; set; }
+    [Parameter] public EventCallback OnRunStep { get; set; }
+
+    private Guid? _loadedStepId;
+    private WebAutomationStepType _stepType;
+    private WebSelectorType _selectorType;
+    private string? _selector;
+    private string? _value;
+    private string? _url;
+    private string? _description;
+    private int _timeoutMs;
+    private int _delayAfterMs;
+    private int _retryCount;
+    private bool _isOptional;
+    private bool _takeScreenshot;
+    private const string SelectClass = "mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-[#111b2e] px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10";
+
+    protected override void OnParametersSet()
+    {
+        if (Step is null)
+        {
+            return;
+        }
+
+        if (_loadedStepId == Step.Id
+            && _stepType == Step.StepType
+            && _selectorType == Step.SelectorType
+            && string.Equals(_selector, Step.Selector, StringComparison.Ordinal)
+            && string.Equals(_value, Step.Value, StringComparison.Ordinal)
+            && string.Equals(_url, Step.Url, StringComparison.Ordinal)
+            && string.Equals(_description, Step.Description, StringComparison.Ordinal)
+            && _timeoutMs == Step.TimeoutMs
+            && _delayAfterMs == Step.DelayAfterMs
+            && _retryCount == Step.RetryCount
+            && _isOptional == Step.IsOptional
+            && _takeScreenshot == Step.TakeScreenshotAfterStep)
+        {
+            return;
+        }
+
+        _loadedStepId = Step.Id;
+        _stepType = Step.StepType;
+        _selectorType = Step.SelectorType;
+        _selector = Step.Selector;
+        _value = Step.Value;
+        _url = Step.Url;
+        _description = Step.Description;
+        _timeoutMs = Step.TimeoutMs;
+        _delayAfterMs = Step.DelayAfterMs;
+        _retryCount = Step.RetryCount;
+        _isOptional = Step.IsOptional;
+        _takeScreenshot = Step.TakeScreenshotAfterStep;
+    }
+
+    private Task SaveAsync()
+    {
+        if (Step is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return OnStepChanged.InvokeAsync(new UpdateWebAutomationStepRequest(
+            Step.Id,
+            _stepType,
+            _selectorType,
+            _selector,
+            _value,
+            _url,
+            _description,
+            _timeoutMs,
+            _delayAfterMs,
+            _isOptional,
+            _takeScreenshot,
+            _retryCount));
+    }
+
+    private Task RunStepAsync()
+    {
+        return OnRunStep.InvokeAsync();
+    }
+
+    private RenderFragment Field(string label, string? value, Action<string> onChange) => @<label class="block">
+        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">@label</span>
+        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+               value="@value"
+               @oninput="args => onChange(args.Value?.ToString() ?? string.Empty)" />
+    </label>;
+
+    private RenderFragment NumberField(string label, int value, Action<int> onChange) => @<label class="block">
+        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">@label</span>
+        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+               type="number"
+               value="@value"
+               @oninput="args => onChange(int.TryParse(args.Value?.ToString(), out var parsed) ? parsed : value)" />
+    </label>;
+}

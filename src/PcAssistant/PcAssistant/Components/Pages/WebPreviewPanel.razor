@@ -1,0 +1,207 @@
+@inject IJSRuntime JsRuntime
+@implements IDisposable
+@using PcAssistant.Application.Abstractions.Services
+@using PcAssistant.Application.Models
+
+<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Preview</p>
+            <h2 class="mt-1 text-base font-semibold text-white">Live website</h2>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                    type="button"
+                    @onclick="RefreshPreviewAsync">
+                Refresh preview
+            </button>
+            <button class="rounded-lg border border-sky-300/20 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-300/15"
+                    type="button"
+                    @onclick="OpenHeadedPreviewAsync">
+                Open browser
+            </button>
+            <button class="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
+                    type="button"
+                    @onclick="CaptureSelectorAsync">
+                Capture selector
+            </button>
+            <button class="rounded-lg border border-amber-300/25 bg-amber-300/15 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-300/20"
+                    type="button"
+                    @onclick="TargetClickAsync">
+                Target click
+            </button>
+            <button class="rounded-lg border border-indigo-300/25 bg-indigo-300/15 px-3 py-2 text-xs font-semibold text-indigo-100 transition hover:bg-indigo-300/20"
+                    type="button"
+                    @onclick="TargetInputAsync">
+                Target input
+            </button>
+            <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                    type="button"
+                    @onclick="TakeScreenshotAsync">
+                Take screenshot
+            </button>
+        </div>
+    </div>
+
+    <div id="@PreviewRootId" class="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
+        @if (_preview?.CanUseInlinePreview == true)
+        {
+            <iframe id="@FrameId"
+                    class="h-[26rem] w-full bg-white"
+                    src="@_preview.InlinePreviewUrl"
+                    sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+                    @onload="HighlightSelectedStepAsync">
+            </iframe>
+        }
+        else if (!string.IsNullOrWhiteSpace(_preview?.ScreenshotPath))
+        {
+            <img class="max-h-[26rem] w-full object-contain" src="@ScreenshotUri(_preview.ScreenshotPath)" alt="" />
+        }
+        else
+        {
+            <div class="flex h-[26rem] items-center justify-center px-6 text-center text-sm text-[#aab6c9]">
+                @_preview?.Message
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public string StartUrl { get; set; } = string.Empty;
+    [Parameter] public IWebPreviewService? Preview { get; set; }
+    [Parameter] public WebAutomationStepDto? SelectedStep { get; set; }
+    [Parameter] public EventCallback<string> OnMessage { get; set; }
+    [Parameter] public EventCallback<string> OnSelectorCaptured { get; set; }
+    [Parameter] public EventCallback<string> OnClickTargetCaptured { get; set; }
+    [Parameter] public EventCallback<string> OnInputTargetCaptured { get; set; }
+
+    private readonly string FrameId = $"web-preview-frame-{Guid.NewGuid():N}";
+    private readonly string PreviewRootId = $"web-preview-root-{Guid.NewGuid():N}";
+    private WebPreviewDto? _preview;
+    private string? _loadedUrl;
+    private DotNetObjectReference<WebPreviewPanel>? _reference;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Preview is null || string.Equals(_loadedUrl, StartUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _loadedUrl = StartUrl;
+        await RefreshPreviewAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        await HighlightSelectedStepAsync();
+    }
+
+    private async Task RefreshPreviewAsync()
+    {
+        if (Preview is null)
+        {
+            return;
+        }
+
+        _preview = await Preview.CreatePreviewAsync(StartUrl);
+        await OnMessage.InvokeAsync(_preview.Message ?? "Preview refreshed.");
+    }
+
+    private async Task TakeScreenshotAsync()
+    {
+        if (Preview is null)
+        {
+            return;
+        }
+
+        _preview = await Preview.CaptureScreenshotPreviewAsync(StartUrl);
+        await OnMessage.InvokeAsync(_preview.Message ?? "Screenshot preview updated.");
+    }
+
+    private async Task OpenHeadedPreviewAsync()
+    {
+        if (Preview is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Preview.OpenHeadedPreviewAsync(StartUrl);
+            await OnMessage.InvokeAsync("Headed browser preview opened.");
+        }
+        catch (Exception ex)
+        {
+            await OnMessage.InvokeAsync(ex.Message);
+        }
+    }
+
+    private async Task CaptureSelectorAsync()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        var result = await JsRuntime.InvokeAsync<string>("pcAssistantWebAutomation.captureSelector", FrameId, _reference);
+        await OnMessage.InvokeAsync(result);
+    }
+
+    private async Task TargetClickAsync()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        var result = await JsRuntime.InvokeAsync<string>("pcAssistantWebAutomation.captureClickTarget", FrameId, _reference);
+        await OnMessage.InvokeAsync(result);
+    }
+
+    private async Task TargetInputAsync()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        var result = await JsRuntime.InvokeAsync<string>("pcAssistantWebAutomation.captureInputTarget", FrameId, _reference);
+        await OnMessage.InvokeAsync(result);
+    }
+
+    private async Task HighlightSelectedStepAsync()
+    {
+        if (_preview?.CanUseInlinePreview != true)
+        {
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantWebAutomation.highlightPreviewSelection",
+            FrameId,
+            SelectedStep?.SelectorType.ToString(),
+            SelectedStep?.Selector,
+            SelectedStep?.Value);
+    }
+
+    [JSInvokable]
+    public async Task NotifySelectorCaptured(string selector)
+    {
+        await OnSelectorCaptured.InvokeAsync(selector);
+        await OnMessage.InvokeAsync($"Captured selector: {selector}");
+    }
+
+    [JSInvokable]
+    public async Task NotifyClickTargetCaptured(string selector)
+    {
+        await OnClickTargetCaptured.InvokeAsync(selector);
+        await OnMessage.InvokeAsync($"Click target captured: {selector}");
+    }
+
+    [JSInvokable]
+    public async Task NotifyInputTargetCaptured(string selector)
+    {
+        await OnInputTargetCaptured.InvokeAsync(selector);
+        await OnMessage.InvokeAsync($"Input target captured: {selector}");
+    }
+
+    private static string ScreenshotUri(string path)
+    {
+        return new Uri(path).AbsoluteUri;
+    }
+
+    public void Dispose()
+    {
+        _reference?.Dispose();
+    }
+}

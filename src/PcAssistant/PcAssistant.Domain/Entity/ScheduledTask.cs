@@ -4,6 +4,7 @@ public sealed class ScheduledTask
 {
     public const string RestartTaskType = "system.restart";
     public const string MessageAutomationTaskType = "automation.send_message";
+    public const string WebAutomationTaskType = "automation.web_flow";
     public const string NoRepeatMode = "none";
     public const string WeeklyRepeatMode = "weekly";
     public const string QueuedStatus = "queued";
@@ -141,6 +142,33 @@ public sealed class ScheduledTask
             NormalizeRequired(appDisplayName, nameof(appDisplayName)),
             string.Join('\n', recipientNames.Select(recipient => NormalizeRequired(recipient, nameof(recipientNames)))),
             NormalizeRequired(messageText, nameof(messageText)),
+            repeatMode,
+            repeatDaysOfWeek);
+    }
+
+    public static ScheduledTask QueueWebAutomation(
+        Guid flowId,
+        string title,
+        string startUrl,
+        DateTimeOffset scheduledForUtc,
+        DateTimeOffset createdAtUtc,
+        string repeatMode,
+        int repeatDaysOfWeek)
+    {
+        return new ScheduledTask(
+            Guid.NewGuid(),
+            chatSessionId: null,
+            commandLogId: null,
+            WebAutomationTaskType,
+            title,
+            priority: 40,
+            scheduledForUtc,
+            createdAtUtc,
+            lastMessage: "Web automation scheduled.",
+            appPath: startUrl,
+            appDisplayName: title,
+            recipientNames: null,
+            messageText: flowId.ToString("D"),
             repeatMode,
             repeatDaysOfWeek);
     }

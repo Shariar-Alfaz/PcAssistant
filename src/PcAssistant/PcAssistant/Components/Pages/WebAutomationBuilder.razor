@@ -1,0 +1,515 @@
+@page "/automation/web/{ProjectId:guid}"
+@inject IWebAutomationProjectService Projects
+@inject IWebPreviewService Preview
+@inject IScheduledTaskService ScheduledTasks
+@inject NavigationManager Navigation
+@using PcAssistant.Application.Abstractions.Services
+@using PcAssistant.Domain.Entity
+@using PcAssistant.Domain.Enums
+
+<PageTitle>Web Automation Builder</PageTitle>
+
+<section class="ui-scrollbar h-screen min-h-0 overflow-y-auto bg-[linear-gradient(180deg,#071321_0%,#0d2134_52%,#08101d_100%)] px-5 py-6 text-[#d9e2f1] sm:px-8">
+    <div class="mx-auto flex w-full max-w-[92rem] flex-col gap-5">
+        <header class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Builder</p>
+                <h1 class="mt-1 text-2xl font-semibold text-white">@(_project?.Name ?? "Web automation")</h1>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                        type="button"
+                        @onclick="OpenProjects">
+                    Projects
+                </button>
+                <button class="rounded-lg border border-sky-300/20 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-300/15 disabled:opacity-60"
+                        type="button"
+                        disabled="@(_flow is null || _isRunning)"
+                        @onclick="RunFullFlowAsync">
+                    @(_isRunning ? "Running..." : "Full run")
+                </button>
+                <button class="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:opacity-60"
+                        type="button"
+                        disabled="@(_flow is null || _isScheduling)"
+                        @onclick="ScheduleFlowAsync">
+                    @(_isScheduling ? "Scheduling..." : "Schedule")
+                </button>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <p class="@MessageClass">@_message</p>
+        }
+
+        @if (_isLoading)
+        {
+            <div class="grid gap-4 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
+                <div class="h-96 animate-pulse rounded-[1.25rem] bg-white/8"></div>
+                <div class="h-96 animate-pulse rounded-[1.25rem] bg-white/8"></div>
+                <div class="h-96 animate-pulse rounded-[1.25rem] bg-white/8"></div>
+            </div>
+        }
+        else if (_project is null || _flow is null)
+        {
+            <p class="rounded-xl border border-rose-300/20 bg-rose-950/80 px-3 py-3 text-sm text-rose-100">Project was not found.</p>
+        }
+        else
+        {
+            <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+                <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Start URL</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               value="@_flowStartUrl"
+                               @oninput="args => _flowStartUrl = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Timeout</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               type="number"
+                               value="@_flowTimeout"
+                               @oninput="args => _flowTimeout = ParseInt(args.Value, _flowTimeout)" />
+                    </label>
+                    <label class="mt-6 flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white">
+                        <input type="checkbox" checked="@_usePersistentSession" @onchange="args => _usePersistentSession = args.Value is bool value && value" />
+                        Persistent session
+                    </label>
+                    <button class="mt-6 rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:opacity-60"
+                            type="button"
+                            disabled="@_isSavingFlow"
+                            @onclick="SaveFlowAsync">
+                        @(_isSavingFlow ? "Saving..." : "Save flow")
+                    </button>
+                </div>
+                <div class="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr]">
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Start date</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               type="date"
+                               value="@_scheduleDateText"
+                               @oninput="args => _scheduleDateText = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Start time</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               type="time"
+                               value="@_scheduleTimeText"
+                               @oninput="args => _scheduleTimeText = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Repeat</span>
+                        <select class="@SelectClass"
+                                value="@_repeatMode"
+                                @onchange="args => _repeatMode = args.Value?.ToString() == ScheduledTask.WeeklyRepeatMode ? ScheduledTask.WeeklyRepeatMode : ScheduledTask.NoRepeatMode">
+                            <option class="bg-[#111b2e] text-white" value="@ScheduledTask.NoRepeatMode">One time</option>
+                            <option class="bg-[#111b2e] text-white" value="@ScheduledTask.WeeklyRepeatMode">Weekly</option>
+                        </select>
+                    </label>
+                    <button class="mt-6 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:opacity-60"
+                            type="button"
+                            disabled="@_isScheduling"
+                            @onclick="ScheduleFlowAsync">
+                        @(_isScheduling ? "Scheduling..." : "Schedule run")
+                    </button>
+                </div>
+            </section>
+
+            <div class="grid min-h-0 gap-4 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
+                <StepToolbox OnAddStep="AddStepFromTemplateAsync" />
+                <div class="flex min-w-0 flex-col gap-4">
+                    <WebPreviewPanel StartUrl="@_flowStartUrl"
+                                     Preview="Preview"
+                                     SelectedStep="@_selectedStep"
+                                     OnSelectorCaptured="ApplyCapturedSelectorAsync"
+                                     OnClickTargetCaptured="ApplyClickTargetAsync"
+                                     OnInputTargetCaptured="ApplyInputTargetAsync"
+                                     OnMessage="ShowMessageAsync" />
+                    <StepList Steps="@_steps"
+                              SelectedStepId="@_selectedStep?.Id"
+                              OnSelectStep="SelectStep"
+                              OnDeleteStep="DeleteStepAsync"
+                              OnDuplicateStep="DuplicateStepAsync"
+                              OnReorderSteps="ReorderStepsAsync" />
+                </div>
+                <div class="flex min-w-0 flex-col gap-4">
+                    <StepEditor Step="@_selectedStep"
+                                OnStepChanged="UpdateSelectedStepAsync"
+                                OnRunStep="RunSelectedStepAsync" />
+                    <RunLogs Logs="@_runLogs" />
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private readonly List<WebAutomationStepDto> _steps = new();
+    private readonly List<WebAutomationRunDto> _runLogs = new();
+    private WebAutomationProjectDto? _project;
+    private WebAutomationFlowDto? _flow;
+    private WebAutomationStepDto? _selectedStep;
+    private string _flowStartUrl = string.Empty;
+    private int _flowTimeout = 30000;
+    private bool _usePersistentSession = true;
+    private string? _message;
+    private bool _isLoading = true;
+    private bool _isSavingFlow;
+    private bool _isRunning;
+    private bool _isScheduling;
+    private string _scheduleDateText = DateTimeOffset.Now.AddMinutes(5).ToString("yyyy-MM-dd");
+    private string _scheduleTimeText = DateTimeOffset.Now.AddMinutes(5).ToString("HH:mm");
+    private string _repeatMode = ScheduledTask.NoRepeatMode;
+
+    private string MessageClass => _message?.StartsWith("Saved", StringComparison.OrdinalIgnoreCase) == true || _message?.StartsWith("Run", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.StartsWith("Scheduled", StringComparison.OrdinalIgnoreCase) == true
+        ? "rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-100"
+        : "rounded-xl border border-sky-300/20 bg-sky-300/10 px-3 py-2 text-sm text-sky-100";
+    private const string SelectClass = "mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-[#111b2e] px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync(preserveDraft: false);
+    }
+
+    private async Task LoadAsync(bool preserveDraft)
+    {
+        var draftUrl = _flowStartUrl;
+        var draftTimeout = _flowTimeout;
+        var draftPersistent = _usePersistentSession;
+        _isLoading = true;
+        _project = await Projects.GetProjectDetailsAsync(ProjectId);
+        _flow = _project?.Flows.FirstOrDefault();
+        _steps.Clear();
+        _runLogs.Clear();
+        if (_flow is not null)
+        {
+            _flowStartUrl = preserveDraft ? draftUrl : _flow.StartUrl;
+            _flowTimeout = preserveDraft ? draftTimeout : _flow.DefaultTimeoutMs;
+            _usePersistentSession = preserveDraft ? draftPersistent : _flow.UsePersistentSession;
+            _steps.AddRange(_flow.Steps);
+            _selectedStep = _selectedStep is null
+                ? _steps.FirstOrDefault()
+                : _steps.FirstOrDefault(step => step.Id == _selectedStep.Id) ?? _steps.FirstOrDefault();
+            _runLogs.AddRange(await Projects.GetRunLogsAsync(_flow.Id));
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task SaveFlowAsync()
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        _isSavingFlow = true;
+        var result = await Projects.UpdateFlowAsync(new UpdateWebAutomationFlowRequest(_flow.Id, _flow.Name, _flowStartUrl, _flow.Headless, _flow.BrowserChannel, _usePersistentSession, _flowTimeout));
+        _isSavingFlow = false;
+        _message = result.Succeeded ? "Saved flow." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: false);
+    }
+
+    private async Task AddStepFromTemplateAsync(WebAutomationStepType stepType)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        var request = new CreateWebAutomationStepRequest(
+            _flow.Id,
+            stepType,
+            WebSelectorType.Css,
+            DefaultSelector(stepType),
+            DefaultValue(stepType),
+            stepType == WebAutomationStepType.GotoUrl ? _flowStartUrl : null,
+            StepLabel(stepType),
+            _flowTimeout,
+            250,
+            false,
+            stepType == WebAutomationStepType.Screenshot,
+            0);
+        var result = await Projects.AddStepAsync(request);
+        _message = result.Succeeded ? "Step added." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private void SelectStep(WebAutomationStepDto step)
+    {
+        _selectedStep = step;
+    }
+
+    private async Task UpdateSelectedStepAsync(UpdateWebAutomationStepRequest request)
+    {
+        var result = await Projects.UpdateStepAsync(request);
+        _message = result.Succeeded ? "Step saved." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task DeleteStepAsync(WebAutomationStepDto step)
+    {
+        var result = await Projects.DeleteStepAsync(step.Id);
+        _message = result.Succeeded ? "Step deleted." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task DuplicateStepAsync(WebAutomationStepDto step)
+    {
+        var result = await Projects.DuplicateStepAsync(step.Id);
+        _message = result.Succeeded ? "Step duplicated." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ReorderStepsAsync(IReadOnlyList<Guid> stepIds)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        var result = await Projects.ReorderStepsAsync(new ReorderWebAutomationStepsRequest(_flow.Id, stepIds));
+        _message = result.Succeeded ? "Step order saved." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task RunSelectedStepAsync()
+    {
+        if (_flow is null || _selectedStep is null)
+        {
+            return;
+        }
+
+        var result = await Projects.RunSingleStepAsync(_flow.Id, _selectedStep.Id);
+        _message = result.Succeeded ? result.Value?.Message ?? "Step run completed." : result.ErrorMessage;
+    }
+
+    private async Task RunFullFlowAsync()
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        _isRunning = true;
+        var result = await Projects.RunFlowAsync(new RunWebAutomationFlowRequest(_flow.Id, RunHeaded: false, RequireConfirmation: true));
+        _isRunning = false;
+        _message = result.Succeeded ? $"Run {result.Value?.Status}." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ApplyCapturedSelectorAsync(string selector)
+    {
+        if (_selectedStep is null)
+        {
+            _message = "Select a step before capturing a selector.";
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            _selectedStep.StepType,
+            WebSelectorType.Css,
+            selector,
+            _selectedStep.Value,
+            _selectedStep.Url,
+            _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount));
+        _message = result.Succeeded ? "Selector captured and saved." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ApplyClickTargetAsync(string selector)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        if (_selectedStep is null)
+        {
+            var addResult = await Projects.AddStepAsync(new CreateWebAutomationStepRequest(
+                _flow.Id,
+                WebAutomationStepType.Click,
+                WebSelectorType.Css,
+                selector,
+                null,
+                null,
+                "Click target",
+                _flowTimeout,
+                250,
+                false,
+                false,
+                0));
+            _message = addResult.Succeeded ? "Click step created from preview target." : addResult.ErrorMessage;
+            _selectedStep = addResult.Value;
+            await LoadAsync(preserveDraft: true);
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            WebAutomationStepType.Click,
+            WebSelectorType.Css,
+            selector,
+            null,
+            _selectedStep.Url,
+            string.IsNullOrWhiteSpace(_selectedStep.Description) ? "Click target" : _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount));
+        _message = result.Succeeded ? "Selected step is now a preview click target." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ApplyInputTargetAsync(string selector)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        if (_selectedStep is null)
+        {
+            var addResult = await Projects.AddStepAsync(new CreateWebAutomationStepRequest(
+                _flow.Id,
+                WebAutomationStepType.Fill,
+                WebSelectorType.Css,
+                selector,
+                "sample text",
+                null,
+                "Fill input",
+                _flowTimeout,
+                250,
+                false,
+                false,
+                0));
+            _message = addResult.Succeeded ? "Fill step created from preview input." : addResult.ErrorMessage;
+            _selectedStep = addResult.Value;
+            await LoadAsync(preserveDraft: true);
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            WebAutomationStepType.Fill,
+            WebSelectorType.Css,
+            selector,
+            string.IsNullOrWhiteSpace(_selectedStep.Value) ? "sample text" : _selectedStep.Value,
+            _selectedStep.Url,
+            string.IsNullOrWhiteSpace(_selectedStep.Description) ? "Fill input" : _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount));
+        _message = result.Succeeded ? "Selected step is now a preview input target." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ScheduleFlowAsync()
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        _isScheduling = true;
+        var saveResult = await Projects.UpdateFlowAsync(new UpdateWebAutomationFlowRequest(_flow.Id, _flow.Name, _flowStartUrl, _flow.Headless, _flow.BrowserChannel, _usePersistentSession, _flowTimeout));
+        if (!saveResult.Succeeded)
+        {
+            _message = saveResult.ErrorMessage;
+            _isScheduling = false;
+            return;
+        }
+
+        try
+        {
+            var task = await ScheduledTasks.ScheduleWebAutomationAsync(new ScheduleWebAutomationRequest(
+                _flow.Id,
+                _flow.Name,
+                _flowStartUrl,
+                BuildScheduleTime(),
+                _repeatMode,
+                _repeatMode == ScheduledTask.WeeklyRepeatMode ? DayMask(DateTimeOffset.Now.DayOfWeek) : 0));
+            _message = $"Scheduled for {task.ScheduledForUtc.ToLocalTime():MMM d, h:mm tt}.";
+        }
+        catch (Exception ex)
+        {
+            _message = ex.Message;
+        }
+        finally
+        {
+            _isScheduling = false;
+        }
+
+        await LoadAsync(preserveDraft: false);
+    }
+
+    private Task ShowMessageAsync(string message)
+    {
+        _message = message;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void OpenProjects()
+    {
+        Navigation.NavigateTo("/automation/web");
+    }
+
+    private static int ParseInt(object? value, int fallback)
+    {
+        return int.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
+    }
+
+    private DateTimeOffset BuildScheduleTime()
+    {
+        if (!TimeOnly.TryParse(_scheduleTimeText, out var time))
+        {
+            throw new InvalidOperationException("Choose a valid automation time.");
+        }
+
+        var date = DateOnly.TryParse(_scheduleDateText, out var parsedDate) ? parsedDate : DateOnly.FromDateTime(DateTime.Now);
+        return new DateTimeOffset(date.ToDateTime(time), DateTimeOffset.Now.Offset);
+    }
+
+    private static int DayMask(DayOfWeek dayOfWeek)
+    {
+        return 1 << (int)dayOfWeek;
+    }
+
+    private static string StepLabel(WebAutomationStepType type) => type switch
+    {
+        WebAutomationStepType.GotoUrl => "Open URL",
+        WebAutomationStepType.WaitForSelector => "Wait for element",
+        WebAutomationStepType.ExtractText => "Extract text",
+        WebAutomationStepType.AssertText => "Assert text",
+        WebAutomationStepType.AssertVisible => "Assert visible",
+        WebAutomationStepType.SelectOption => "Select option",
+        _ => type.ToString(),
+    };
+
+    private static string? DefaultSelector(WebAutomationStepType type) => type switch
+    {
+        WebAutomationStepType.Click or WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.WaitForSelector or WebAutomationStepType.ExtractText or WebAutomationStepType.AssertText or WebAutomationStepType.AssertVisible or WebAutomationStepType.SelectOption or WebAutomationStepType.Check or WebAutomationStepType.Uncheck or WebAutomationStepType.Hover => "h1",
+        _ => null,
+    };
+
+    private static string? DefaultValue(WebAutomationStepType type) => type switch
+    {
+        WebAutomationStepType.Fill or WebAutomationStepType.Type => "sample text",
+        WebAutomationStepType.Press => "Enter",
+        WebAutomationStepType.AssertText => "Example Domain",
+        _ => null,
+    };
+}

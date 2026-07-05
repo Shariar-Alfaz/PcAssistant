@@ -1,0 +1,38 @@
+@using PcAssistant.Domain.Enums
+
+<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Toolbox</p>
+    <h2 class="mt-1 text-base font-semibold text-white">Steps</h2>
+    <div class="mt-4 grid gap-2">
+        @foreach (var template in Templates)
+        {
+            <button class="flex min-h-11 items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 text-left text-sm font-semibold text-[#d9e2f1] transition hover:border-sky-300/30 hover:bg-sky-300/10"
+                    type="button"
+                    draggable="true"
+                    @onclick="() => OnAddStep.InvokeAsync(template.Type)">
+                <span>@template.Label</span>
+                <span class="text-xs text-[#8fa1bc]">Add</span>
+            </button>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public EventCallback<WebAutomationStepType> OnAddStep { get; set; }
+
+    private static readonly (WebAutomationStepType Type, string Label)[] Templates =
+    [
+        (WebAutomationStepType.GotoUrl, "Open URL"),
+        (WebAutomationStepType.Click, "Click"),
+        (WebAutomationStepType.Fill, "Fill input"),
+        (WebAutomationStepType.Type, "Type text"),
+        (WebAutomationStepType.Press, "Press key"),
+        (WebAutomationStepType.WaitForSelector, "Wait for element"),
+        (WebAutomationStepType.Wait, "Wait delay"),
+        (WebAutomationStepType.SelectOption, "Select option"),
+        (WebAutomationStepType.Screenshot, "Screenshot"),
+        (WebAutomationStepType.ExtractText, "Extract text"),
+        (WebAutomationStepType.AssertText, "Assert text"),
+        (WebAutomationStepType.AssertVisible, "Assert visible"),
+    ];
+}

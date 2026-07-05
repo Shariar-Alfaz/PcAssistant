@@ -2,6 +2,7 @@
 @inject IScheduledTaskService ScheduledTasks
 @inject IInstalledAppDiscoveryService InstalledApps
 @inject IJSRuntime JsRuntime
+@inject NavigationManager Navigation
 @using PcAssistant.Application.Abstractions.Services
 @using PcAssistant.Application.Models
 @using PcAssistant.Domain.Entity
@@ -47,11 +48,11 @@
                         <span class="block text-sm font-semibold text-white">Message automation</span>
                         <span class="mt-1 block text-xs leading-5 text-[#aab6c9]">Send scheduled chat messages.</span>
                     </button>
-                    <button class="rounded-xl border border-white/10 bg-black/15 px-4 py-4 text-left opacity-60"
+                    <button class="rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-4 text-left transition hover:bg-emerald-300/15"
                             type="button"
-                            disabled>
+                            @onclick="OpenWebAutomationProjects">
                         <span class="block text-sm font-semibold text-white">Web automation</span>
-                        <span class="mt-1 block text-xs leading-5 text-[#aab6c9]">Coming later.</span>
+                        <span class="mt-1 block text-xs leading-5 text-[#aab6c9]">Build Playwright browser flows.</span>
                     </button>
                     <button class="rounded-xl border border-white/10 bg-black/15 px-4 py-4 text-left opacity-60"
                             type="button"
@@ -498,6 +499,11 @@
     {
         ResetMessageForm();
         _showMessageModal = true;
+    }
+
+    private void OpenWebAutomationProjects()
+    {
+        Navigation.NavigateTo("/automation/web");
     }
 
     private async Task OpenEditMessageModal(ScheduledTaskItem task)

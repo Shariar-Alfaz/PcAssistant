@@ -242,6 +242,9 @@
   .pointer-events-none {
     pointer-events: none;
   }
+  .visible {
+    visibility: visible;
+  }
   .sr-only {
     position: absolute;
     width: 1px;
@@ -426,6 +429,12 @@
   .h-28 {
     height: calc(var(--spacing) * 28);
   }
+  .h-96 {
+    height: calc(var(--spacing) * 96);
+  }
+  .h-\[26rem\] {
+    height: 26rem;
+  }
   .h-full {
     height: 100%;
   }
@@ -440,6 +449,12 @@
   }
   .max-h-72 {
     max-height: calc(var(--spacing) * 72);
+  }
+  .max-h-\[26rem\] {
+    max-height: 26rem;
+  }
+  .max-h-\[30rem\] {
+    max-height: 30rem;
   }
   .max-h-\[92vh\] {
     max-height: 92vh;
@@ -549,6 +564,9 @@
   .max-w-\[88\%\] {
     max-width: 88%;
   }
+  .max-w-\[92rem\] {
+    max-width: 92rem;
+  }
   .max-w-full {
     max-width: 100%;
   }
@@ -599,6 +617,9 @@
   }
   .grid-cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .grid-cols-\[auto_minmax\(0\,1fr\)\] {
     grid-template-columns: auto minmax(0,1fr);
@@ -771,6 +792,12 @@
       border-color: color-mix(in oklab, var(--color-emerald-300) 25%, transparent);
     }
   }
+  .border-indigo-300\/25 {
+    border-color: color-mix(in srgb, oklch(78.5% 0.115 274.713) 25%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-indigo-300) 25%, transparent);
+    }
+  }
   .border-rose-300\/20 {
     border-color: color-mix(in srgb, oklch(81% 0.117 11.638) 20%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
@@ -793,6 +820,12 @@
     border-color: color-mix(in srgb, oklch(82.8% 0.111 230.318) 20%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       border-color: color-mix(in oklab, var(--color-sky-300) 20%, transparent);
+    }
+  }
+  .border-sky-300\/30 {
+    border-color: color-mix(in srgb, oklch(82.8% 0.111 230.318) 30%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-sky-300) 30%, transparent);
     }
   }
   .border-white\/10 {
@@ -951,6 +984,12 @@
   .bg-indigo-100 {
     background-color: var(--color-indigo-100);
   }
+  .bg-indigo-300\/15 {
+    background-color: color-mix(in srgb, oklch(78.5% 0.115 274.713) 15%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-indigo-300) 15%, transparent);
+    }
+  }
   .bg-rose-100 {
     background-color: var(--color-rose-100);
   }
@@ -1026,10 +1065,19 @@
   .bg-transparent {
     background-color: transparent;
   }
+  .bg-white {
+    background-color: var(--color-white);
+  }
   .bg-white\/5 {
     background-color: color-mix(in srgb, #fff 5%, transparent);
     @supports (color: color-mix(in lab, red, red)) {
       background-color: color-mix(in oklab, var(--color-white) 5%, transparent);
+    }
+  }
+  .bg-white\/8 {
+    background-color: color-mix(in srgb, #fff 8%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-white) 8%, transparent);
     }
   }
   .bg-white\/10 {
@@ -1312,6 +1360,9 @@
   .text-emerald-700 {
     color: var(--color-emerald-700);
   }
+  .text-indigo-100 {
+    color: var(--color-indigo-100);
+  }
   .text-indigo-700 {
     color: var(--color-indigo-700);
   }
@@ -1523,6 +1574,46 @@
       --tw-ring-color: color-mix(in oklab, #8ec5ff 10%, transparent);
     }
   }
+  .hover\:border-sky-300\/30 {
+    &:hover {
+      @media (hover: hover) {
+        border-color: color-mix(in srgb, oklch(82.8% 0.111 230.318) 30%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          border-color: color-mix(in oklab, var(--color-sky-300) 30%, transparent);
+        }
+      }
+    }
+  }
+  .hover\:bg-amber-300\/20 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, oklch(87.9% 0.169 91.605) 20%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-amber-300) 20%, transparent);
+        }
+      }
+    }
+  }
+  .hover\:bg-emerald-300\/15 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, oklch(84.5% 0.143 164.978) 15%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-emerald-300) 15%, transparent);
+        }
+      }
+    }
+  }
+  .hover\:bg-indigo-300\/20 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, oklch(78.5% 0.115 274.713) 20%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-indigo-300) 20%, transparent);
+        }
+      }
+    }
+  }
   .hover\:bg-rose-300 {
     &:hover {
       @media (hover: hover) {
@@ -1536,6 +1627,16 @@
         background-color: color-mix(in srgb, oklch(81% 0.117 11.638) 15%, transparent);
         @supports (color: color-mix(in lab, red, red)) {
           background-color: color-mix(in oklab, var(--color-rose-300) 15%, transparent);
+        }
+      }
+    }
+  }
+  .hover\:bg-sky-300\/10 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: color-mix(in srgb, oklch(82.8% 0.111 230.318) 10%, transparent);
+        @supports (color: color-mix(in lab, red, red)) {
+          background-color: color-mix(in oklab, var(--color-sky-300) 10%, transparent);
         }
       }
     }
@@ -1734,6 +1835,26 @@
   .lg\:grid-cols-2 {
     @media (width >= 64rem) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .lg\:grid-cols-\[1fr_1fr_1fr_1fr\] {
+    @media (width >= 64rem) {
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+  }
+  .lg\:grid-cols-\[1fr_1fr_2fr\] {
+    @media (width >= 64rem) {
+      grid-template-columns: 1fr 1fr 2fr;
+    }
+  }
+  .lg\:grid-cols-\[2fr_1fr_1fr_1fr\] {
+    @media (width >= 64rem) {
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+    }
+  }
+  .xl\:grid-cols-\[18rem_minmax\(0\,1fr\)_22rem\] {
+    @media (width >= 80rem) {
+      grid-template-columns: 18rem minmax(0,1fr) 22rem;
     }
   }
   .dark\:border-white\/10 {

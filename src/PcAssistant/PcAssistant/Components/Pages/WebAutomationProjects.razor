@@ -1,0 +1,149 @@
+@page "/automation/web"
+@inject IWebAutomationProjectService Projects
+@inject NavigationManager Navigation
+@using PcAssistant.Application.Abstractions.Services
+
+<PageTitle>Web Automation</PageTitle>
+
+<section class="ui-scrollbar h-screen min-h-0 overflow-y-auto bg-[linear-gradient(180deg,#071321_0%,#0d2134_52%,#08101d_100%)] px-5 py-6 text-[#d9e2f1] sm:px-8">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-5">
+        <header class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Web automation</p>
+                <h1 class="mt-1 text-2xl font-semibold text-white">Automation projects</h1>
+            </div>
+            <button class="rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:opacity-60"
+                    type="button"
+                    disabled="@_isSaving"
+                    @onclick="CreateProjectAsync">
+                @(_isSaving ? "Creating..." : "Create project")
+            </button>
+        </header>
+
+        <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+            <div class="grid gap-3 lg:grid-cols-[1fr_1fr_2fr]">
+                <label class="block">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Name</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           value="@_name"
+                           @oninput="args => _name = args.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label class="block">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Description</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           value="@_description"
+                           @oninput="args => _description = args.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label class="block">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Website URL</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none placeholder:text-[#8995ad] focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           placeholder="https://example.com"
+                           value="@_startUrl"
+                           @oninput="args => _startUrl = args.Value?.ToString() ?? string.Empty" />
+                </label>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <p class="@MessageClass">@_message</p>
+            }
+        </section>
+
+        <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Saved</p>
+                    <h2 class="mt-1 text-base font-semibold text-white">@_projects.Count projects</h2>
+                </div>
+                <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                        type="button"
+                        @onclick="LoadProjectsAsync">
+                    Refresh
+                </button>
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div class="h-28 animate-pulse rounded-xl bg-black/20"></div>
+                    <div class="h-28 animate-pulse rounded-xl bg-black/20"></div>
+                </div>
+            }
+            else if (_projects.Count == 0)
+            {
+                <p class="mt-4 rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">No web automation projects yet.</p>
+            }
+            else
+            {
+                <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    @foreach (var project in _projects)
+                    {
+                        <article class="rounded-xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <h3 class="truncate text-sm font-semibold text-white">@project.Name</h3>
+                                    <p class="mt-1 truncate text-xs text-[#aab6c9]">@project.StartUrl</p>
+                                    <p class="mt-2 text-xs text-[#8fa1bc]">@project.Flows.Count flow(s)</p>
+                                </div>
+                                <button class="rounded-lg bg-[#dce9ff] px-3 py-2 text-xs font-semibold text-[#0b1427] transition hover:bg-white"
+                                        type="button"
+                                        @onclick="() => OpenBuilder(project.Id)">
+                                    Open builder
+                                </button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+</section>
+
+@code {
+    private readonly List<WebAutomationProjectDto> _projects = new();
+    private string _name = "Example flow";
+    private string _description = "Demo browser automation";
+    private string _startUrl = "https://example.com";
+    private string? _message;
+    private bool _isLoading = true;
+    private bool _isSaving;
+
+    private string MessageClass => _message?.StartsWith("Created", StringComparison.OrdinalIgnoreCase) == true
+        ? "mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-100"
+        : "mt-3 rounded-xl border border-rose-300/20 bg-rose-950/80 px-3 py-2 text-sm text-rose-100";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProjectsAsync();
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        _isLoading = true;
+        var projects = await Projects.GetProjectsAsync();
+        _projects.Clear();
+        _projects.AddRange(projects);
+        _isLoading = false;
+    }
+
+    private async Task CreateProjectAsync()
+    {
+        _isSaving = true;
+        _message = null;
+        var result = await Projects.CreateProjectAsync(new CreateWebAutomationProjectRequest(_name, _description, _startUrl));
+        _isSaving = false;
+        if (!result.Succeeded || result.Value is null)
+        {
+            _message = result.ErrorMessage;
+            return;
+        }
+
+        _message = "Created web automation project.";
+        await LoadProjectsAsync();
+        Navigation.NavigateTo($"/automation/web/{result.Value.Id}");
+    }
+
+    private void OpenBuilder(Guid projectId)
+    {
+        Navigation.NavigateTo($"/automation/web/{projectId}");
+    }
+}

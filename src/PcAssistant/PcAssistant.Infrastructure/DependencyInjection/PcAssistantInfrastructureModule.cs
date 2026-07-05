@@ -5,6 +5,7 @@ using PcAssistant.Infrastructure.Commands;
 using PcAssistant.Infrastructure.Commands.Handlers;
 using PcAssistant.Infrastructure.Commands.Parsing;
 using PcAssistant.Infrastructure.Platform;
+using PcAssistant.Infrastructure.WebAutomation;
 
 namespace PcAssistant.Infrastructure.DependencyInjection;
 
@@ -53,6 +54,14 @@ public sealed class PcAssistantInfrastructureModule : Module
 
         builder.RegisterType<PythonAiApiProcessService>()
             .As<IAiApiProcessService>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<PlaywrightWebAutomationService>()
+            .As<IWebAutomationService>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<PlaywrightWebPreviewService>()
+            .As<IWebPreviewService>()
             .InstancePerLifetimeScope();
 
         builder.RegisterType<ExplicitPathExtractor>().InstancePerLifetimeScope();
