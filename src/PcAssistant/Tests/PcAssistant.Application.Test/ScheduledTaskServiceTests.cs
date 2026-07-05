@@ -140,6 +140,56 @@ public sealed class ScheduledTaskServiceTests
     }
 
     [Test]
+    public async Task ScheduleWebAutomationAsync_persists_flow_reference()
+    {
+        var repository = new FakeScheduledTaskRepository();
+        var service = new ScheduledTaskService(new FakeUnitOfWorkFactory(repository), new FakeMessageAutomationService());
+        var flowId = Guid.NewGuid();
+
+        var scheduled = await service.ScheduleWebAutomationAsync(
+            new ScheduleWebAutomationRequest(
+                flowId,
+                "Checkout flow",
+                "https://example.com/checkout",
+                DateTimeOffset.Now.AddMinutes(5),
+                ScheduledTask.NoRepeatMode,
+                RepeatDaysOfWeek: 0));
+
+        scheduled.TaskType.ShouldBe(ScheduledTask.WebAutomationTaskType);
+        scheduled.DisplayName.ShouldBe("Checkout flow");
+        scheduled.AppPath.ShouldBe("https://example.com/checkout");
+        scheduled.AppDisplayName.ShouldBe("Checkout flow");
+        scheduled.MessageText.ShouldBe(flowId.ToString("D"));
+        repository.Tasks.Single().QueueStatus.ShouldBe(ScheduledTask.QueuedStatus);
+    }
+
+    [Test]
+    public async Task CancelQueuedTaskAsync_marks_selected_web_automation_cancelled()
+    {
+        var repository = new FakeScheduledTaskRepository();
+        var flowId = Guid.NewGuid();
+        var selected = ScheduledTask.QueueWebAutomation(
+            flowId,
+            "Checkout flow",
+            "https://example.com/checkout",
+            DateTimeOffset.UtcNow.AddMinutes(5),
+            DateTimeOffset.UtcNow,
+            ScheduledTask.NoRepeatMode,
+            repeatDaysOfWeek: 0);
+        selected.SetQueuePosition(1);
+        repository.Tasks.Add(selected);
+        var service = new ScheduledTaskService(new FakeUnitOfWorkFactory(repository), new FakeMessageAutomationService());
+
+        var cancelled = await service.CancelQueuedTaskAsync(selected.Id, "Web automation schedule cancelled.");
+
+        cancelled.ShouldNotBeNull();
+        cancelled.TaskType.ShouldBe(ScheduledTask.WebAutomationTaskType);
+        cancelled.QueueStatus.ShouldBe(ScheduledTask.CancelledStatus);
+        selected.LastMessage.ShouldBe("Web automation schedule cancelled.");
+        (await service.ListQueuedAsync()).ShouldBeEmpty();
+    }
+
+    [Test]
     public async Task CompleteDueTasksAsync_sends_due_one_time_message()
     {
         var repository = new FakeScheduledTaskRepository();

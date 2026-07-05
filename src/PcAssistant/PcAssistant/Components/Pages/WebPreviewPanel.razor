@@ -46,12 +46,24 @@
     <div id="@PreviewRootId" class="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
         @if (_preview?.CanUseInlinePreview == true)
         {
-            <iframe id="@FrameId"
-                    class="h-[26rem] w-full bg-white"
-                    src="@_preview.InlinePreviewUrl"
-                    sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-                    @onload="HighlightSelectedStepAsync">
-            </iframe>
+            @if (!string.IsNullOrWhiteSpace(_preview.InlinePreviewHtml))
+            {
+                <iframe id="@FrameId"
+                        class="h-[26rem] w-full bg-white"
+                        srcdoc="@_preview.InlinePreviewHtml"
+                        sandbox="allow-forms allow-same-origin allow-popups"
+                        @onload="HighlightSelectedStepAsync">
+                </iframe>
+            }
+            else
+            {
+                <iframe id="@FrameId"
+                        class="h-[26rem] w-full bg-white"
+                        src="@_preview.InlinePreviewUrl"
+                        sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+                        @onload="HighlightSelectedStepAsync">
+                </iframe>
+            }
         }
         else if (!string.IsNullOrWhiteSpace(_preview?.ScreenshotPath))
         {

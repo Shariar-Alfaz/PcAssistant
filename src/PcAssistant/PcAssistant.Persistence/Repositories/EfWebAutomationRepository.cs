@@ -26,6 +26,11 @@ internal sealed class EfWebAutomationRepository(IPcAssistantDbContext dbContext)
             .ToArrayAsync(cancellationToken);
     }
 
+    public void DeleteProject(WebAutomationProject project)
+    {
+        dbContext.WebAutomationProjects.Remove(project);
+    }
+
     public Task<WebAutomationFlow?> GetFlowAsync(Guid flowId, CancellationToken cancellationToken = default)
     {
         return dbContext.WebAutomationFlows

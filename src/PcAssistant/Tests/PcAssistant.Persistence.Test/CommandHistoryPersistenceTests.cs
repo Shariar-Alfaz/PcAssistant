@@ -1,5 +1,6 @@
 using Autofac;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
 using PcAssistant.Persistence.Database;
@@ -20,6 +21,7 @@ public sealed class CommandHistoryPersistenceTests
         _databasePath = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"{Guid.NewGuid():N}.db");
         var builder = new ContainerBuilder();
         builder.RegisterModule(new PcAssistantPersistenceModule(_databasePath));
+        builder.RegisterType<FakeWebAutomationService>().As<IWebAutomationService>();
         _container = builder.Build();
         _container.Resolve<PcAssistantDatabaseInitializer>().Initialize();
     }
@@ -133,6 +135,53 @@ public sealed class CommandHistoryPersistenceTests
         olderPage.OlderThanUtc?.ToUnixTimeMilliseconds().ShouldBe(messages[1].CreatedAtUtc.ToUnixTimeMilliseconds());
     }
 
+    [Test]
+    public async Task Web_automation_project_delete_removes_project_and_children_from_database()
+    {
+        var projects = _container.Resolve<IWebAutomationProjectService>();
+        var created = await projects.CreateProjectAsync(new CreateWebAutomationProjectRequest(
+            "Delete me",
+            "Temporary project",
+            "https://delete.example.com"));
+        created.Succeeded.ShouldBeTrue();
+        created.Value.ShouldNotBeNull();
+        var projectId = created.Value.Id;
+        var flowId = created.Value.Flows.Single().Id;
+
+        var deleted = await projects.DeleteProjectAsync(projectId);
+
+        deleted.Succeeded.ShouldBeTrue();
+        using var scope = _container.BeginLifetimeScope();
+        var dbContext = scope.Resolve<PcAssistantDbContext>();
+        (await dbContext.WebAutomationProjects.AnyAsync(project => project.Id == projectId)).ShouldBeFalse();
+        (await dbContext.WebAutomationFlows.AnyAsync(flow => flow.ProjectId == projectId)).ShouldBeFalse();
+        (await dbContext.WebAutomationSteps.AnyAsync(step => step.FlowId == flowId)).ShouldBeFalse();
+    }
+
+    [Test]
+    public async Task Web_automation_steps_can_be_reordered_and_reloaded_from_database()
+    {
+        var projects = _container.Resolve<IWebAutomationProjectService>();
+        var created = await projects.CreateProjectAsync(new CreateWebAutomationProjectRequest(
+            "Reorder me",
+            "Project with reorderable steps",
+            "https://reorder.example.com"));
+        created.Succeeded.ShouldBeTrue();
+        created.Value.ShouldNotBeNull();
+        var flow = created.Value.Flows.Single();
+        var reversedIds = flow.Steps.OrderByDescending(step => step.OrderIndex).Select(step => step.Id).ToArray();
+
+        var reordered = await projects.ReorderStepsAsync(new ReorderWebAutomationStepsRequest(flow.Id, reversedIds));
+
+        reordered.Succeeded.ShouldBeTrue();
+        reordered.Value.ShouldNotBeNull();
+        reordered.Value.Select(step => step.Id).ShouldBe(reversedIds);
+        var reloaded = await projects.GetProjectDetailsAsync(created.Value.Id);
+        reloaded.ShouldNotBeNull();
+        reloaded.Flows.Single().Steps.Select(step => step.Id).ShouldBe(reversedIds);
+        reloaded.Flows.Single().Steps.Select(step => step.OrderIndex).ShouldBe([1, 2, 3, 4]);
+    }
+
     private static CommandResponse CreateResponse(string label, double confidence)
     {
         return new CommandResponse
@@ -158,5 +207,25 @@ public sealed class CommandHistoryPersistenceTests
                 ? "Restart this PC after a short delay."
                 : "I could not understand this as a PC command.",
         };
+    }
+
+    private sealed class FakeWebAutomationService : IWebAutomationService
+    {
+        public Task<WebAutomationRunDto> RunFlowAsync(
+            WebAutomationFlowDto flow,
+            bool runHeaded,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<WebAutomationRunStepLogDto> RunSingleStepAsync(
+            WebAutomationFlowDto flow,
+            WebAutomationStepDto step,
+            bool runHeaded,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

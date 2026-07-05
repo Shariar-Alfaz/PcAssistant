@@ -1,3 +1,4 @@
+@using Microsoft.AspNetCore.Components.Web
 @using PcAssistant.Domain.Enums
 
 <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
@@ -22,34 +23,65 @@
                     }
                 </select>
             </label>
-            <label class="block">
-                <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Selector type</span>
-                <select class="@SelectClass"
-                        value="@_selectorType"
-                        @onchange="args => _selectorType = Enum.Parse<WebSelectorType>(args.Value?.ToString() ?? nameof(WebSelectorType.Css))">
-                    @foreach (var type in Enum.GetValues<WebSelectorType>())
-                    {
-                        <option class="bg-[#111b2e] text-white" value="@type">@type</option>
-                    }
-                </select>
-            </label>
-            @Field("Selector", _selector, value => _selector = value)
-            @Field("Value", _value, value => _value = value)
-            @Field("URL", _url, value => _url = value)
+            @if (UsesSelector(_stepType))
+            {
+                <label class="block">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Selector type</span>
+                    <select class="@SelectClass"
+                            value="@_selectorType"
+                            @onchange="args => _selectorType = Enum.Parse<WebSelectorType>(args.Value?.ToString() ?? nameof(WebSelectorType.Css))">
+                        @foreach (var type in Enum.GetValues<WebSelectorType>())
+                        {
+                            <option class="bg-[#111b2e] text-white" value="@type">@type</option>
+                        }
+                    </select>
+                </label>
+                @Field(SelectorLabel(_stepType, _selectorType), _selector, value => _selector = value)
+            }
+            @if (UsesValue(_stepType))
+            {
+                @if (_stepType == WebAutomationStepType.Press)
+                {
+                    @KeyCaptureField(ValueLabel(_stepType), _value, value => _value = value)
+                }
+                else
+                {
+                    @Field(ValueLabel(_stepType), _value, value => _value = value)
+                }
+            }
+            @if (UsesUrl(_stepType))
+            {
+                @Field("URL", _url, value => _url = value)
+            }
             @Field("Description", _description, value => _description = value)
-            <div class="grid grid-cols-3 gap-2">
-                @NumberField("Timeout", _timeoutMs, value => _timeoutMs = value)
-                @NumberField("Delay", _delayAfterMs, value => _delayAfterMs = value)
-                @NumberField("Retry", _retryCount, value => _retryCount = value)
-            </div>
+            @if (UsesTimeout(_stepType) || UsesDelay(_stepType) || UsesRetry(_stepType))
+            {
+                <div class="@TimingGridClass">
+                    @if (UsesTimeout(_stepType))
+                    {
+                        @NumberField("Timeout", _timeoutMs, value => _timeoutMs = value)
+                    }
+                    @if (UsesDelay(_stepType))
+                    {
+                        @NumberField(DelayLabel(_stepType), _delayAfterMs, value => _delayAfterMs = value)
+                    }
+                    @if (UsesRetry(_stepType))
+                    {
+                        @NumberField("Retry", _retryCount, value => _retryCount = value)
+                    }
+                </div>
+            }
             <label class="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white">
                 <input type="checkbox" checked="@_isOptional" @onchange="args => _isOptional = args.Value is bool value && value" />
                 Optional
             </label>
-            <label class="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white">
-                <input type="checkbox" checked="@_takeScreenshot" @onchange="args => _takeScreenshot = args.Value is bool value && value" />
-                Screenshot after step
-            </label>
+            @if (UsesScreenshotAfterStep(_stepType))
+            {
+                <label class="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white">
+                    <input type="checkbox" checked="@_takeScreenshot" @onchange="args => _takeScreenshot = args.Value is bool value && value" />
+                    Screenshot after step
+                </label>
+            }
             <div class="flex gap-2">
                 <button class="flex-1 rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white"
                         type="button"
@@ -84,6 +116,8 @@
     private bool _isOptional;
     private bool _takeScreenshot;
     private const string SelectClass = "mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-[#111b2e] px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10";
+    private string TimingGridClass => VisibleTimingFields <= 1 ? "grid gap-2" : VisibleTimingFields == 2 ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2";
+    private int VisibleTimingFields => (UsesTimeout(_stepType) ? 1 : 0) + (UsesDelay(_stepType) ? 1 : 0) + (UsesRetry(_stepType) ? 1 : 0);
 
     protected override void OnParametersSet()
     {
@@ -132,16 +166,16 @@
         return OnStepChanged.InvokeAsync(new UpdateWebAutomationStepRequest(
             Step.Id,
             _stepType,
-            _selectorType,
-            _selector,
-            _value,
-            _url,
+            UsesSelector(_stepType) ? _selectorType : WebSelectorType.Css,
+            UsesSelector(_stepType) ? _selector : null,
+            UsesValue(_stepType) ? _value : null,
+            UsesUrl(_stepType) ? _url : null,
             _description,
-            _timeoutMs,
-            _delayAfterMs,
+            UsesTimeout(_stepType) ? _timeoutMs : Step.TimeoutMs,
+            UsesDelay(_stepType) ? _delayAfterMs : 0,
             _isOptional,
-            _takeScreenshot,
-            _retryCount));
+            UsesScreenshotAfterStep(_stepType) && _takeScreenshot,
+            UsesRetry(_stepType) ? _retryCount : 0));
     }
 
     private Task RunStepAsync()
@@ -156,6 +190,16 @@
                @oninput="args => onChange(args.Value?.ToString() ?? string.Empty)" />
     </label>;
 
+    private RenderFragment KeyCaptureField(string label, string? value, Action<string> onChange) => @<label class="block">
+        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">@label</span>
+        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+               value="@value"
+               @oninput="args => onChange(args.Value?.ToString() ?? string.Empty)"
+               @onkeydown="args => CaptureKeyPress(args, onChange)"
+               @onkeydown:preventDefault="true"
+               @onkeydown:stopPropagation="true" />
+    </label>;
+
     private RenderFragment NumberField(string label, int value, Action<int> onChange) => @<label class="block">
         <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">@label</span>
         <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
@@ -163,4 +207,121 @@
                value="@value"
                @oninput="args => onChange(int.TryParse(args.Value?.ToString(), out var parsed) ? parsed : value)" />
     </label>;
+
+    private static bool UsesSelector(WebAutomationStepType stepType)
+    {
+        return stepType is WebAutomationStepType.Click
+            or WebAutomationStepType.Fill
+            or WebAutomationStepType.Type
+            or WebAutomationStepType.WaitForSelector
+            or WebAutomationStepType.SelectOption
+            or WebAutomationStepType.Check
+            or WebAutomationStepType.Uncheck
+            or WebAutomationStepType.Hover
+            or WebAutomationStepType.ExtractText
+            or WebAutomationStepType.AssertText
+            or WebAutomationStepType.AssertVisible;
+    }
+
+    private static bool UsesValue(WebAutomationStepType stepType)
+    {
+        return stepType is WebAutomationStepType.Fill
+            or WebAutomationStepType.Type
+            or WebAutomationStepType.Press
+            or WebAutomationStepType.SelectOption
+            or WebAutomationStepType.AssertText;
+    }
+
+    private static bool UsesUrl(WebAutomationStepType stepType)
+    {
+        return stepType == WebAutomationStepType.GotoUrl;
+    }
+
+    private static bool UsesTimeout(WebAutomationStepType stepType)
+    {
+        return UsesUrl(stepType) || UsesSelector(stepType);
+    }
+
+    private static bool UsesDelay(WebAutomationStepType stepType)
+    {
+        return stepType != WebAutomationStepType.Screenshot;
+    }
+
+    private static bool UsesRetry(WebAutomationStepType stepType)
+    {
+        return stepType is not WebAutomationStepType.Wait and not WebAutomationStepType.Screenshot;
+    }
+
+    private static bool UsesScreenshotAfterStep(WebAutomationStepType stepType)
+    {
+        return stepType != WebAutomationStepType.Screenshot;
+    }
+
+    private static string SelectorLabel(WebAutomationStepType stepType, WebSelectorType selectorType)
+    {
+        if (selectorType == WebSelectorType.Role)
+        {
+            return "Role";
+        }
+
+        return stepType == WebAutomationStepType.WaitForSelector ? "Wait for" : "Selector";
+    }
+
+    private static string ValueLabel(WebAutomationStepType stepType)
+    {
+        return stepType switch
+        {
+            WebAutomationStepType.Fill => "Text",
+            WebAutomationStepType.Type => "Text",
+            WebAutomationStepType.Press => "Key",
+            WebAutomationStepType.SelectOption => "Option",
+            WebAutomationStepType.AssertText => "Expected text",
+            _ => "Value",
+        };
+    }
+
+    private static string DelayLabel(WebAutomationStepType stepType)
+    {
+        return stepType == WebAutomationStepType.Wait ? "Duration" : "Delay";
+    }
+
+    private static void CaptureKeyPress(KeyboardEventArgs args, Action<string> onChange)
+    {
+        var key = NormalizeKey(args.Key);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var parts = new List<string>(5);
+        AddModifier(parts, args.CtrlKey, "Control", key);
+        AddModifier(parts, args.ShiftKey, "Shift", key);
+        AddModifier(parts, args.AltKey, "Alt", key);
+        AddModifier(parts, args.MetaKey, "Meta", key);
+        parts.Add(key);
+        onChange(string.Join("+", parts));
+    }
+
+    private static void AddModifier(ICollection<string> parts, bool isPressed, string modifier, string key)
+    {
+        if (isPressed && !string.Equals(key, modifier, StringComparison.OrdinalIgnoreCase))
+        {
+            parts.Add(modifier);
+        }
+    }
+
+    private static string NormalizeKey(string? key)
+    {
+        return key switch
+        {
+            null or "" or "Unidentified" => string.Empty,
+            " " => "Space",
+            "Esc" => "Escape",
+            "Del" => "Delete",
+            "Ctrl" => "Control",
+            "Win" or "OS" => "Meta",
+            { Length: 1 } value => value.ToUpperInvariant(),
+            _ => key,
+        };
+    }
 }

@@ -124,6 +124,7 @@ public sealed record WebPreviewDto(
     string Url,
     bool CanUseInlinePreview,
     string? InlinePreviewUrl,
+    string? InlinePreviewHtml,
     string? ScreenshotPath,
     string? Message);
 

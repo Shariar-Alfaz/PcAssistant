@@ -84,11 +84,19 @@
                                     <p class="mt-1 truncate text-xs text-[#aab6c9]">@project.StartUrl</p>
                                     <p class="mt-2 text-xs text-[#8fa1bc]">@project.Flows.Count flow(s)</p>
                                 </div>
-                                <button class="rounded-lg bg-[#dce9ff] px-3 py-2 text-xs font-semibold text-[#0b1427] transition hover:bg-white"
-                                        type="button"
-                                        @onclick="() => OpenBuilder(project.Id)">
-                                    Open builder
-                                </button>
+                                <div class="flex shrink-0 flex-wrap justify-end gap-2">
+                                    <button class="rounded-lg bg-[#dce9ff] px-3 py-2 text-xs font-semibold text-[#0b1427] transition hover:bg-white"
+                                            type="button"
+                                            @onclick="() => OpenBuilder(project.Id)">
+                                        Open builder
+                                    </button>
+                                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                            type="button"
+                                            disabled="@(_deletingProjectId == project.Id)"
+                                            @onclick="() => AskDeleteProject(project)">
+                                        @(_deletingProjectId == project.Id ? "Deleting..." : "Delete")
+                                    </button>
+                                </div>
                             </div>
                         </article>
                     }
@@ -96,6 +104,30 @@
             }
         </section>
     </div>
+
+    @if (_pendingDeleteProject is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+            <section class="w-full max-w-md rounded-2xl border border-white/10 bg-[#101d2f] p-4 shadow-2xl shadow-black/50">
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Confirm delete</p>
+                <h2 class="mt-2 text-base font-semibold text-white">@_pendingDeleteProject.Name</h2>
+                <p class="mt-2 text-sm leading-6 text-[#aab6c9]">This project and its web automation flows, steps, and run logs will be deleted from the database.</p>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                            type="button"
+                            @onclick="CancelDeleteProject">
+                        Keep
+                    </button>
+                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled="@(_deletingProjectId == _pendingDeleteProject.Id)"
+                            @onclick="ConfirmDeleteProjectAsync">
+                        @(_deletingProjectId == _pendingDeleteProject.Id ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
 </section>
 
 @code {
@@ -106,8 +138,11 @@
     private string? _message;
     private bool _isLoading = true;
     private bool _isSaving;
+    private Guid? _deletingProjectId;
+    private WebAutomationProjectDto? _pendingDeleteProject;
 
     private string MessageClass => _message?.StartsWith("Created", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.StartsWith("Deleted", StringComparison.OrdinalIgnoreCase) == true
         ? "mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-100"
         : "mt-3 rounded-xl border border-rose-300/20 bg-rose-950/80 px-3 py-2 text-sm text-rose-100";
 
@@ -145,5 +180,48 @@
     private void OpenBuilder(Guid projectId)
     {
         Navigation.NavigateTo($"/automation/web/{projectId}");
+    }
+
+    private void AskDeleteProject(WebAutomationProjectDto project)
+    {
+        _pendingDeleteProject = project;
+    }
+
+    private void CancelDeleteProject()
+    {
+        _pendingDeleteProject = null;
+    }
+
+    private async Task ConfirmDeleteProjectAsync()
+    {
+        if (_pendingDeleteProject is null)
+        {
+            return;
+        }
+
+        var project = _pendingDeleteProject;
+        _deletingProjectId = project.Id;
+        _message = null;
+        try
+        {
+            var result = await Projects.DeleteProjectAsync(project.Id);
+            if (!result.Succeeded)
+            {
+                _message = result.ErrorMessage;
+                return;
+            }
+
+            _pendingDeleteProject = null;
+            _message = "Deleted web automation project.";
+            await LoadProjectsAsync();
+        }
+        catch (Exception ex)
+        {
+            _message = ex.Message;
+        }
+        finally
+        {
+            _deletingProjectId = null;
+        }
     }
 }

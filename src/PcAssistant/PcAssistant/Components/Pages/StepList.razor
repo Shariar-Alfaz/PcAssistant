@@ -10,7 +10,7 @@
         <span class="text-xs text-[#8fa1bc]">Drag to reorder</span>
     </div>
 
-    <div id="@ListId" class="mt-4 grid gap-2">
+    <div id="@ListId" class="mt-4 grid gap-2" data-web-step-list="true">
         @if (Steps.Count == 0)
         {
             <p class="rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">Add a step from the toolbox.</p>
@@ -39,7 +39,7 @@
                         <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-2 py-1 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15"
                                 type="button"
                                 @onclick:stopPropagation
-                                @onclick="() => OnDeleteStep.InvokeAsync(step)">
+                                @onclick="() => DeleteStepWithAnimationAsync(step)">
                             Delete
                         </button>
                     </div>
@@ -76,8 +76,8 @@
     private string StepClass(WebAutomationStepDto step)
     {
         return step.Id == SelectedStepId
-            ? "cursor-pointer rounded-xl border border-sky-300/30 bg-sky-300/10 px-3 py-3"
-            : "cursor-pointer rounded-xl border border-white/10 bg-black/20 px-3 py-3 transition hover:bg-white/8";
+            ? "web-automation-step-card cursor-pointer rounded-xl border border-sky-300/30 bg-sky-300/10 px-3 py-3"
+            : "web-automation-step-card cursor-pointer rounded-xl border border-white/10 bg-black/20 px-3 py-3 transition hover:bg-white/8";
     }
 
     private static string StepMeta(WebAutomationStepDto step)
@@ -96,5 +96,11 @@
     {
         await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.destroySortableSteps", ListId);
         _reference?.Dispose();
+    }
+
+    private async Task DeleteStepWithAnimationAsync(WebAutomationStepDto step)
+    {
+        await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.animateStepDeleted", ListId, step.Id.ToString("D"));
+        await OnDeleteStep.InvokeAsync(step);
     }
 }

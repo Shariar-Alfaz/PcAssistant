@@ -8,6 +8,8 @@ public interface IWebAutomationProjectService
 
     Task<WebAutomationOperationResult<WebAutomationProjectDto>> UpdateProjectAsync(UpdateWebAutomationProjectRequest request, CancellationToken cancellationToken = default);
 
+    Task<WebAutomationOperationResult<bool>> DeleteProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<WebAutomationProjectDto>> GetProjectsAsync(CancellationToken cancellationToken = default);
 
     Task<WebAutomationProjectDto?> GetProjectDetailsAsync(Guid projectId, CancellationToken cancellationToken = default);

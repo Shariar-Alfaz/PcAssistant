@@ -72,6 +72,30 @@ public sealed class WebAutomationProjectService(
         }
     }
 
+    public async Task<WebAutomationOperationResult<bool>> DeleteProjectAsync(
+        Guid projectId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var unitOfWork = unitOfWorkFactory.Create();
+        var project = await unitOfWork.Automations.GetProjectAsync(projectId, cancellationToken);
+        if (project is null)
+        {
+            return WebAutomationOperationResult<bool>.Failure("Web automation project was not found.");
+        }
+
+        try
+        {
+            unitOfWork.Automations.DeleteProject(project);
+            await unitOfWork.CommitAsync(cancellationToken);
+            return WebAutomationOperationResult<bool>.Success(true);
+        }
+        catch (Exception ex)
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            return WebAutomationOperationResult<bool>.Failure(CleanMessage(ex));
+        }
+    }
+
     public async Task<IReadOnlyList<WebAutomationProjectDto>> GetProjectsAsync(CancellationToken cancellationToken = default)
     {
         await using var unitOfWork = unitOfWorkFactory.Create();
@@ -271,6 +295,15 @@ public sealed class WebAutomationProjectService(
         try
         {
             var now = DateTime.UtcNow;
+            var temporaryOrderIndex = orderedIds.Length + 1;
+            foreach (var step in flow.Steps.OrderBy(step => step.OrderIndex))
+            {
+                step.SetOrderIndex(temporaryOrderIndex++, now);
+            }
+
+            await unitOfWork.CommitAsync(cancellationToken);
+
+            now = DateTime.UtcNow;
             for (var index = 0; index < orderedIds.Length; index++)
             {
                 stepsById[orderedIds[index]].SetOrderIndex(index + 1, now);
@@ -430,7 +463,7 @@ public sealed class WebAutomationProjectService(
             return ValidateUrl(url, "Step URL");
         }
 
-        if (stepType is WebAutomationStepType.Click or WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.WaitForSelector or WebAutomationStepType.AssertVisible
+        if (RequiresSelector(stepType)
             && string.IsNullOrWhiteSpace(selector))
         {
             return $"{stepType} requires a selector.";
@@ -443,6 +476,21 @@ public sealed class WebAutomationProjectService(
         }
 
         return null;
+    }
+
+    private static bool RequiresSelector(WebAutomationStepType stepType)
+    {
+        return stepType is WebAutomationStepType.Click
+            or WebAutomationStepType.Fill
+            or WebAutomationStepType.Type
+            or WebAutomationStepType.WaitForSelector
+            or WebAutomationStepType.SelectOption
+            or WebAutomationStepType.Check
+            or WebAutomationStepType.Uncheck
+            or WebAutomationStepType.Hover
+            or WebAutomationStepType.ExtractText
+            or WebAutomationStepType.AssertText
+            or WebAutomationStepType.AssertVisible;
     }
 
     private static string? ValidateTimeout(int timeoutMs)

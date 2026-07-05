@@ -217,6 +217,134 @@ input[type="week"]::-webkit-calendar-picker-indicator:hover {
     opacity: 1;
 }
 
+.web-automation-builder-shell {
+    position: relative;
+    isolation: isolate;
+    background:
+        radial-gradient(circle at 18% 0%, rgba(14, 165, 233, 0.18), transparent 28rem),
+        radial-gradient(circle at 82% 18%, rgba(45, 212, 191, 0.12), transparent 26rem),
+        linear-gradient(180deg, #071321 0%, #0d2134 52%, #08101d 100%);
+}
+
+.web-automation-builder-content {
+    position: relative;
+    z-index: 1;
+}
+
+.web-automation-ambient {
+    background:
+        linear-gradient(115deg, transparent 0%, rgba(56, 189, 248, 0.05) 42%, transparent 58%),
+        linear-gradient(180deg, transparent, rgba(45, 212, 191, 0.04), transparent);
+    background-size: 28rem 28rem, 100% 38rem;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    position: fixed;
+    z-index: 0;
+}
+
+.web-automation-ambient::before {
+    background:
+        linear-gradient(rgba(142, 197, 255, 0.09) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(142, 197, 255, 0.075) 1px, transparent 1px);
+    background-size: 3.25rem 3.25rem;
+    content: "";
+    inset: -4rem;
+    opacity: 0.42;
+    position: absolute;
+    transform: perspective(42rem) rotateX(62deg) translateY(-9rem);
+    transform-origin: center top;
+}
+
+.web-automation-ambient::after {
+    background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.2), transparent);
+    content: "";
+    height: 1px;
+    left: -20%;
+    opacity: 0.8;
+    position: absolute;
+    right: -20%;
+    top: var(--pc-sweep, 24%);
+}
+
+.web-automation-panel-sticky {
+    align-self: start;
+    height: max-content;
+    position: sticky;
+    top: 1rem;
+    z-index: 2;
+}
+
+.web-automation-panel-stack {
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+}
+
+.web-automation-step-card {
+    will-change: transform, opacity, box-shadow;
+}
+
+.web-automation-step-card.sortable-chosen {
+    border-color: rgba(125, 211, 252, 0.55);
+    box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.26), 0 18px 48px rgba(0, 0, 0, 0.32);
+}
+
+.web-automation-step-card.sortable-ghost {
+    opacity: 0.35;
+}
+
+.web-automation-step-placeholder {
+    background:
+        linear-gradient(90deg, rgba(56, 189, 248, 0.16), rgba(45, 212, 191, 0.08), rgba(56, 189, 248, 0.16));
+    border: 1px dashed rgba(125, 211, 252, 0.48);
+    border-radius: 0.75rem;
+    box-shadow: inset 0 0 22px rgba(56, 189, 248, 0.08), 0 0 28px rgba(56, 189, 248, 0.12);
+    min-height: 0;
+    overflow: hidden;
+}
+
+.web-automation-toast {
+    backdrop-filter: blur(18px);
+    border-radius: 0.875rem;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.36), 0 0 34px rgba(56, 189, 248, 0.16);
+    max-width: min(24rem, calc(100vw - 2rem));
+    pointer-events: none;
+    position: fixed;
+    right: 1.25rem;
+    top: 1.25rem;
+    z-index: 70;
+}
+
+.web-automation-tool-ghost {
+    align-items: center;
+    background: rgba(14, 26, 45, 0.96);
+    border: 1px solid rgba(125, 211, 252, 0.45);
+    border-radius: 0.75rem;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38), 0 0 38px rgba(56, 189, 248, 0.28);
+    color: #e0f2fe;
+    display: flex;
+    font-size: 0.875rem;
+    font-weight: 700;
+    gap: 0.7rem;
+    min-height: 2.75rem;
+    padding: 0 0.75rem;
+    pointer-events: none;
+    position: fixed;
+    transform-origin: center;
+    z-index: 9999;
+}
+
+@media (max-width: 1279px) {
+    .web-automation-panel-sticky {
+        position: static;
+    }
+
+    .web-automation-panel-stack {
+        max-height: none;
+        overflow: visible;
+    }
+}
+
 a {
     color: inherit;
 }

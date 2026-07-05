@@ -1,19 +1,114 @@
 window.pcAssistantWebAutomation = {
+    initializeBuilderSurface(surfaceId) {
+        const surface = document.getElementById(surfaceId);
+        if (!surface) {
+            return;
+        }
+
+        this.destroyBuilderSurface(surfaceId);
+        this.initializeToolCapture(surface);
+
+        if (!window.gsap) {
+            return;
+        }
+
+        const ambient = surface.querySelector(".web-automation-ambient");
+        const panels = surface.querySelectorAll(".web-automation-panel-sticky > section, .web-automation-panel-stack > section");
+        const timeline = window.gsap.timeline();
+        timeline.fromTo(
+            surface.querySelectorAll("header, .web-automation-panel-sticky, [data-web-step-list]"),
+            { y: 14, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.45, stagger: 0.045, ease: "power2.out" });
+
+        if (ambient) {
+            const sweep = window.gsap.to(ambient, {
+                "--pc-sweep": "100%",
+                duration: 8,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
+            const drift = window.gsap.to(ambient, {
+                backgroundPosition: "120px 80px",
+                duration: 16,
+                repeat: -1,
+                yoyo: true,
+                ease: "sine.inOut"
+            });
+            surface.__pcAssistantBuilderTweens = [timeline, sweep, drift];
+        } else {
+            surface.__pcAssistantBuilderTweens = [timeline];
+        }
+
+        panels.forEach((panel, index) => {
+            window.gsap.fromTo(
+                panel,
+                { y: 10, opacity: 0.82 },
+                { y: 0, opacity: 1, duration: 0.35, delay: index * 0.035, ease: "power2.out" });
+        });
+    },
+
+    destroyBuilderSurface(surfaceId) {
+        const surface = document.getElementById(surfaceId);
+        if (!surface) {
+            return;
+        }
+
+        if (surface.__pcAssistantToolCapture) {
+            surface.removeEventListener("pointerdown", surface.__pcAssistantToolCapture, true);
+            delete surface.__pcAssistantToolCapture;
+        }
+
+        (surface.__pcAssistantBuilderTweens || []).forEach((tween) => tween?.kill?.());
+        delete surface.__pcAssistantBuilderTweens;
+    },
+
+    initializeToolCapture(surface) {
+        const capture = (event) => {
+            const tool = event.target.closest("[data-web-tool-type]");
+            if (!tool || !surface.contains(tool)) {
+                return;
+            }
+
+            this.lastToolSource = {
+                type: tool.dataset.webToolType,
+                label: tool.dataset.webToolLabel || tool.textContent.trim(),
+                rect: tool.getBoundingClientRect()
+            };
+        };
+
+        surface.addEventListener("pointerdown", capture, true);
+        surface.__pcAssistantToolCapture = capture;
+    },
+
     initializeSortableSteps(elementId, dotNetRef) {
         const element = document.getElementById(elementId);
         if (!element) {
             return;
         }
 
-        this.destroySortableSteps(elementId);
+        if (element.__pcAssistantSortable) {
+            element.__pcAssistantDotNetRef = dotNetRef;
+            return;
+        }
 
         if (window.Sortable) {
             const sortable = window.Sortable.create(element, {
-                animation: 150,
+                animation: 220,
+                easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+                dataIdAttr: "data-step-id",
                 draggable: "[data-step-id]",
-                onEnd: () => this.notifyStepOrder(element, dotNetRef)
+                ghostClass: "sortable-ghost",
+                chosenClass: "sortable-chosen",
+                dragClass: "sortable-drag",
+                forceFallback: true,
+                fallbackOnBody: true,
+                onStart: (event) => this.animateDragStart(event.item),
+                onEnd: () => this.notifyStepOrder(element, element.__pcAssistantDotNetRef || dotNetRef)
             });
             element.__pcAssistantSortable = sortable;
+            element.__pcAssistantDotNetRef = dotNetRef;
+            this.animateStepCards(element);
             return;
         }
 
@@ -53,6 +148,8 @@ window.pcAssistantWebAutomation = {
         element.addEventListener("dragover", onDragOver);
         element.addEventListener("dragend", onDragEnd);
         element.__pcAssistantNativeSortable = { onDragStart, onDragOver, onDragEnd };
+        element.__pcAssistantDotNetRef = dotNetRef;
+        this.animateStepCards(element);
     },
 
     destroySortableSteps(elementId) {
@@ -73,11 +170,213 @@ window.pcAssistantWebAutomation = {
             element.removeEventListener("dragend", native.onDragEnd);
             delete element.__pcAssistantNativeSortable;
         }
+
+        delete element.__pcAssistantDotNetRef;
     },
 
     notifyStepOrder(element, dotNetRef) {
-        const ids = Array.from(element.querySelectorAll("[data-step-id]")).map((item) => item.dataset.stepId);
+        const ids = element.__pcAssistantSortable
+            ? element.__pcAssistantSortable.toArray()
+            : Array.from(element.querySelectorAll("[data-step-id]")).map((item) => item.dataset.stepId);
+        const signature = ids.join("|");
+        if (!signature || signature === element.__pcAssistantLastOrderSignature) {
+            return Promise.resolve();
+        }
+
+        element.__pcAssistantLastOrderSignature = signature;
         return dotNetRef.invokeMethodAsync("OnStepOrderChanged", ids);
+    },
+
+    animateDragStart(item) {
+        if (!window.gsap || !item) {
+            return;
+        }
+
+        window.gsap.fromTo(item, { scale: 1 }, { scale: 1.02, duration: 0.18, ease: "power2.out" });
+    },
+
+    animateStepCards(element) {
+        if (!window.gsap || !element) {
+            return;
+        }
+
+        const cards = Array.from(element.querySelectorAll("[data-step-id]"));
+        window.gsap.fromTo(cards, { y: 8, opacity: 0.84 }, { y: 0, opacity: 1, duration: 0.28, stagger: 0.025, ease: "power2.out" });
+    },
+
+    animateStepOrderSaved() {
+        if (!window.gsap) {
+            return;
+        }
+
+        const list = document.querySelector("[data-web-step-list]");
+        if (!list) {
+            return;
+        }
+
+        window.gsap.fromTo(
+            list.querySelectorAll("[data-step-id]"),
+            { boxShadow: "0 0 0 rgba(56, 189, 248, 0)" },
+            { boxShadow: "0 0 26px rgba(56, 189, 248, 0.18)", duration: 0.2, yoyo: true, repeat: 1, stagger: 0.025, ease: "sine.inOut" });
+    },
+
+    animateStepDeleted(listId, stepId) {
+        const list = document.getElementById(listId);
+        const item = list?.querySelector(`[data-step-id="${stepId}"]`);
+        if (!window.gsap || !item) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            window.gsap.timeline({ onComplete: resolve })
+                .to(item, {
+                    x: 18,
+                    scale: 0.985,
+                    borderColor: "rgba(251, 113, 133, 0.55)",
+                    boxShadow: "0 0 34px rgba(251, 113, 133, 0.22)",
+                    duration: 0.16,
+                    ease: "power2.out"
+                })
+                .to(item, {
+                    x: -32,
+                    height: 0,
+                    marginTop: 0,
+                    marginBottom: 0,
+                    paddingTop: 0,
+                    paddingBottom: 0,
+                    opacity: 0,
+                    scale: 0.96,
+                    duration: 0.28,
+                    ease: "power2.in"
+                });
+        });
+    },
+
+    animateToast() {
+        if (!window.gsap) {
+            return;
+        }
+
+        const toast = document.querySelector("[data-web-automation-toast]");
+        if (!toast) {
+            return;
+        }
+
+        window.gsap.killTweensOf(toast);
+        window.gsap.fromTo(
+            toast,
+            { y: -18, x: 18, opacity: 0, scale: 0.97 },
+            { y: 0, x: 0, opacity: 1, scale: 1, duration: 0.34, ease: "back.out(1.7)" });
+        window.gsap.to(toast, { opacity: 0, y: -12, duration: 0.24, delay: 4.2, ease: "power2.in" });
+    },
+
+    animateToolAddedToInsertionSlot(stepType) {
+        if (!window.gsap) {
+            return Promise.resolve();
+        }
+
+        const list = document.querySelector("[data-web-step-list]");
+        if (!list) {
+            return Promise.resolve();
+        }
+
+        const source = this.resolveToolAnimationSource(stepType);
+        const placeholder = this.createInsertionPlaceholder(list);
+        const targetRect = placeholder.getBoundingClientRect();
+        if (!source) {
+            return new Promise((resolve) => {
+                window.gsap.fromTo(
+                    placeholder,
+                    { height: 0, opacity: 0, scale: 0.98 },
+                    {
+                        height: 82,
+                        opacity: 1,
+                        scale: 1,
+                        duration: 0.24,
+                        ease: "power2.out",
+                        onComplete: () => {
+                            placeholder.remove();
+                            resolve();
+                        }
+                    });
+            });
+        }
+
+        const ghost = document.createElement("div");
+        ghost.className = "web-automation-tool-ghost";
+        ghost.textContent = source.label;
+        ghost.style.left = `${source.rect.left}px`;
+        ghost.style.top = `${source.rect.top}px`;
+        ghost.style.width = `${Math.max(source.rect.width, 150)}px`;
+        document.body.appendChild(ghost);
+
+        return new Promise((resolve) => {
+            const timeline = window.gsap.timeline({
+                onComplete: () => {
+                    ghost.remove();
+                    placeholder.remove();
+                    resolve();
+                }
+            });
+
+            timeline
+                .fromTo(placeholder, { height: 0, opacity: 0 }, { height: 82, opacity: 1, duration: 0.18, ease: "power2.out" }, 0)
+                .fromTo(ghost, { scale: 0.92, opacity: 0.35 }, { scale: 1, opacity: 1, duration: 0.16, ease: "power2.out" }, 0)
+                .to(ghost, {
+                    left: targetRect.left + 12,
+                    top: targetRect.top + 12,
+                    width: Math.max(targetRect.width - 24, 140),
+                    scale: 0.94,
+                    duration: 0.48,
+                    ease: "power3.inOut"
+                })
+                .to(ghost, { opacity: 0, scale: 0.82, duration: 0.12, ease: "power2.in" })
+                .to(placeholder, { opacity: 0.25, duration: 0.12, ease: "sine.out" }, "<");
+        });
+    },
+
+    resolveToolAnimationSource(stepType) {
+        const captured = this.lastToolSource?.type === stepType ? this.lastToolSource : null;
+        if (captured) {
+            return captured;
+        }
+
+        const tool = document.querySelector(`[data-web-tool-type="${stepType}"]`);
+        if (!tool) {
+            return null;
+        }
+
+        return {
+            type: stepType,
+            label: tool.dataset.webToolLabel || tool.textContent.trim(),
+            rect: tool.getBoundingClientRect()
+        };
+    },
+
+    createInsertionPlaceholder(list) {
+        list.querySelectorAll(".web-automation-step-placeholder").forEach((item) => item.remove());
+        const placeholder = document.createElement("div");
+        placeholder.className = "web-automation-step-placeholder";
+        placeholder.setAttribute("aria-hidden", "true");
+        list.appendChild(placeholder);
+        return placeholder;
+    },
+
+    animateNewStepCardById(stepId) {
+        const target = document.querySelector(`[data-web-step-list] [data-step-id="${stepId}"]`);
+        this.animateNewStepCard(target);
+    },
+
+    animateNewStepCard(target) {
+        if (!window.gsap || !target) {
+            return;
+        }
+
+        window.gsap.fromTo(
+            target,
+            { y: -10, scale: 0.985, boxShadow: "0 0 0 rgba(56, 189, 248, 0)" },
+            { y: 0, scale: 1, boxShadow: "0 0 34px rgba(56, 189, 248, 0.24)", duration: 0.34, ease: "back.out(1.6)" });
+        window.gsap.to(target, { boxShadow: "0 0 0 rgba(56, 189, 248, 0)", duration: 0.45, delay: 0.28, ease: "sine.out" });
     },
 
     captureSelector(frameId, dotNetRef) {
@@ -95,7 +394,8 @@ window.pcAssistantWebAutomation = {
             dotNetRef,
             "NotifyClickTargetCaptured",
             "Click the element in the preview that this automation should click. The real page click is blocked during targeting.",
-            "Click targeting is not available for this preview. Open headed browser mode and manually enter a click selector.");
+            "Click targeting is not available for this preview. Open headed browser mode and manually enter a click selector.",
+            (target) => this.resolveClickTarget(target));
     },
 
     captureInputTarget(frameId, dotNetRef) {
@@ -116,13 +416,26 @@ window.pcAssistantWebAutomation = {
 
         try {
             const doc = frame.contentDocument;
+            this.cancelActiveCapture(frame);
             this.ensurePreviewHighlightStyles(doc);
             this.clearPreviewHighlight(frame);
+            const captureController = new AbortController();
+            frame.__pcAssistantActiveCapture = captureController;
+            let handled = false;
+            let suppressTimer = null;
+            const listenerOptions = { capture: true, signal: captureController.signal };
             const handler = (event) => {
+                if (handled) {
+                    return;
+                }
+
+                handled = true;
                 event.preventDefault();
                 event.stopPropagation();
+                event.stopImmediatePropagation();
                 const target = targetResolver ? targetResolver(event.target) : event.target;
                 if (!target) {
+                    handled = false;
                     return;
                 }
 
@@ -130,20 +443,49 @@ window.pcAssistantWebAutomation = {
                 frame.dataset.lastSelector = selector;
                 this.clearPreviewHighlight(frame);
                 target.classList.add("pc-assistant-automation-target");
-                doc.removeEventListener("click", handler, true);
-                doc.removeEventListener("mouseover", hoverHandler, true);
+                captureController.abort();
+                if (frame.__pcAssistantActiveCapture === captureController) {
+                    delete frame.__pcAssistantActiveCapture;
+                }
+
+                doc.addEventListener("click", suppressClick, true);
+                suppressTimer = setTimeout(() => {
+                    doc.removeEventListener("click", suppressClick, true);
+                }, 750);
                 dotNetRef?.invokeMethodAsync(callbackName, selector);
+            };
+            const suppressClick = (event) => {
+                if (suppressTimer) {
+                    clearTimeout(suppressTimer);
+                    suppressTimer = null;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                doc.removeEventListener("click", suppressClick, true);
             };
             const hoverHandler = (event) => {
                 this.clearPreviewHover(frame);
                 const target = targetResolver ? targetResolver(event.target) : event.target;
                 (target || event.target).classList.add("pc-assistant-automation-hover");
             };
-            doc.addEventListener("mouseover", hoverHandler, true);
-            doc.addEventListener("click", handler, true);
+            doc.addEventListener("mouseover", hoverHandler, listenerOptions);
+            doc.addEventListener("pointerdown", handler, listenerOptions);
+            doc.addEventListener("mousedown", handler, listenerOptions);
+            doc.addEventListener("touchstart", handler, listenerOptions);
+            doc.addEventListener("click", handler, listenerOptions);
             return successMessage;
         } catch {
             return failureMessage;
+        }
+    },
+
+    cancelActiveCapture(frame) {
+        const activeCapture = frame.__pcAssistantActiveCapture;
+        if (activeCapture) {
+            activeCapture.abort();
+            delete frame.__pcAssistantActiveCapture;
         }
     },
 
@@ -152,9 +494,13 @@ window.pcAssistantWebAutomation = {
             return null;
         }
 
-        const direct = target.closest("input, textarea, select, [contenteditable='true'], [role='textbox'], [role='combobox']");
+        const editableSelector = this.inputTargetSelector();
+        const direct = target.closest(editableSelector);
         if (direct) {
-            return direct;
+            const nestedEditable = direct.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")
+                ? direct
+                : direct.querySelector("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+            return nestedEditable || direct;
         }
 
         const label = target.closest("label");
@@ -168,10 +514,81 @@ window.pcAssistantWebAutomation = {
                 return label.ownerDocument.getElementById(forId);
             }
 
-            return label.querySelector("input, textarea, select, [contenteditable='true'], [role='textbox'], [role='combobox']");
+            return label.querySelector(editableSelector);
+        }
+
+        const describedControl = this.findAssociatedInput(target);
+        if (describedControl) {
+            return describedControl;
         }
 
         return null;
+    },
+
+    inputTargetSelector() {
+        return [
+            "input",
+            "textarea",
+            "select",
+            "[contenteditable]:not([contenteditable='false'])",
+            "[role='textbox']",
+            "[role='searchbox']",
+            "[role='combobox']",
+            "[role='spinbutton']",
+            "[aria-multiline='true']"
+        ].join(",");
+    },
+
+    findAssociatedInput(target) {
+        const doc = target.ownerDocument;
+        const associationAttributes = ["aria-controls", "aria-owns", "for"];
+        for (const attribute of associationAttributes) {
+            const id = target.closest(`[${attribute}]`)?.getAttribute(attribute);
+            if (!id) {
+                continue;
+            }
+
+            const candidate = doc.getElementById(id);
+            if (candidate?.matches(this.inputTargetSelector())) {
+                return candidate;
+            }
+
+            const nested = candidate?.querySelector?.(this.inputTargetSelector());
+            if (nested) {
+                return nested;
+            }
+        }
+
+        return null;
+    },
+
+    resolveClickTarget(target) {
+        if (!target || target.nodeType !== Node.ELEMENT_NODE) {
+            return null;
+        }
+
+        const actionableSelector = [
+            "a[href]",
+            "button",
+            "summary",
+            "label",
+            "select",
+            "textarea",
+            "input",
+            "[onclick]",
+            "[role='button']",
+            "[role='link']",
+            "[role='menuitem']",
+            "[role='tab']",
+            "[role='checkbox']",
+            "[role='radio']",
+            "[role='switch']",
+            "[data-testid]",
+            "[data-test-id]",
+            "[data-test]"
+        ].join(",");
+
+        return target.closest(actionableSelector) || target;
     },
 
     highlightPreviewSelection(frameId, selectorType, selector, value) {
@@ -328,21 +745,83 @@ window.pcAssistantWebAutomation = {
     },
 
     buildCssSelector(element) {
-        if (element.id) {
-            return `#${CSS.escape(element.id)}`;
+        const doc = element.ownerDocument;
+        const uniqueAttributeSelector = this.buildUniqueAttributeSelector(doc, element);
+        if (uniqueAttributeSelector) {
+            return uniqueAttributeSelector;
         }
 
         const parts = [];
         let current = element;
-        while (current && current.nodeType === Node.ELEMENT_NODE && parts.length < 4) {
-            let part = current.tagName.toLowerCase();
-            if (current.classList.length > 0) {
-                part += `.${Array.from(current.classList).slice(0, 3).map((item) => CSS.escape(item)).join(".")}`;
-            }
+        while (current && current.nodeType === Node.ELEMENT_NODE && current !== doc.documentElement) {
+            const part = this.buildSelectorPart(current);
             parts.unshift(part);
+            const selector = parts.join(" > ");
+            if (this.isUniqueSelector(doc, selector)) {
+                return selector;
+            }
+
             current = current.parentElement;
         }
 
+        parts.unshift(doc.documentElement.localName.toLowerCase());
         return parts.join(" > ");
+    },
+
+    buildUniqueAttributeSelector(doc, element) {
+        const candidates = [];
+        if (element.id) {
+            candidates.push(`#${CSS.escape(element.id)}`);
+        }
+
+        ["data-testid", "data-test-id", "data-test", "name", "aria-label", "href", "title"].forEach((attribute) => {
+            const value = element.getAttribute(attribute);
+            if (value) {
+                candidates.push(`${element.localName.toLowerCase()}[${attribute}="${this.escapeAttribute(value)}"]`);
+                candidates.push(`[${attribute}="${this.escapeAttribute(value)}"]`);
+            }
+        });
+
+        return candidates.find((selector) => this.isUniqueSelector(doc, selector)) || null;
+    },
+
+    buildSelectorPart(element) {
+        let part = element.localName.toLowerCase();
+        const stableAttributes = ["data-testid", "data-test-id", "data-test", "name", "aria-label", "title"];
+        for (const attribute of stableAttributes) {
+            const value = element.getAttribute(attribute);
+            if (value) {
+                return `${part}[${attribute}="${this.escapeAttribute(value)}"]`;
+            }
+        }
+
+        const stableClasses = Array.from(element.classList)
+            .filter((item) => !item.startsWith("pc-assistant-automation-"))
+            .filter((item) => /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(item))
+            .slice(0, 2);
+        if (stableClasses.length > 0) {
+            part += `.${stableClasses.map((item) => CSS.escape(item)).join(".")}`;
+        }
+
+        const parent = element.parentElement;
+        if (!parent) {
+            return part;
+        }
+
+        const sameTagSiblings = Array.from(parent.children)
+            .filter((child) => child.localName === element.localName);
+        if (sameTagSiblings.length > 1) {
+            part += `:nth-of-type(${sameTagSiblings.indexOf(element) + 1})`;
+        }
+
+        return part;
+    },
+
+    isUniqueSelector(doc, selector) {
+        try {
+            return doc.querySelectorAll(selector).length === 1;
+        } catch {
+            return false;
+        }
     }
 };

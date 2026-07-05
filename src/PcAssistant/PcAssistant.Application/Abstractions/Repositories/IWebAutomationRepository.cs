@@ -10,6 +10,8 @@ public interface IWebAutomationRepository
 
     Task<IReadOnlyList<WebAutomationProject>> ListProjectsAsync(CancellationToken cancellationToken = default);
 
+    void DeleteProject(WebAutomationProject project);
+
     Task<WebAutomationFlow?> GetFlowAsync(Guid flowId, CancellationToken cancellationToken = default);
 
     Task AddFlowAsync(WebAutomationFlow flow, CancellationToken cancellationToken = default);

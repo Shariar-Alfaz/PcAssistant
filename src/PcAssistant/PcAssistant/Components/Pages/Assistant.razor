@@ -664,6 +664,12 @@
                                             @task.AppDisplayName &middot; @FormatRecipients(task.RecipientNames)
                                         </p>
                                     }
+                                    else if (IsWebAutomationTask(task))
+                                    {
+                                        <p class="mt-1 text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">
+                                            @task.AppPath
+                                        </p>
+                                    }
                                 </div>
                                 <span class="@ScheduledTaskCountdownClass(task)">
                                     @FormatScheduledCountdown(task)
@@ -1031,6 +1037,18 @@
                 if (removed is null)
                 {
                     _errorMessage = "The scheduled automation was no longer queued.";
+                }
+
+                await RefreshScheduledTasksAsync();
+                return;
+            }
+
+            if (IsWebAutomationTask(task))
+            {
+                var removed = await ScheduledTasks.CancelQueuedTaskAsync(task.Id, "Web automation cancelled.");
+                if (removed is null)
+                {
+                    _errorMessage = "The scheduled web automation was no longer queued.";
                 }
 
                 await RefreshScheduledTasksAsync();
@@ -2054,6 +2072,13 @@
 
     private static string FormatScheduledTaskKind(ScheduledTaskItem task)
     {
+        if (IsWebAutomationTask(task))
+        {
+            return task.RepeatMode == ScheduledTask.WeeklyRepeatMode
+                ? "Weekly web flow"
+                : "One-time web flow";
+        }
+
         if (!IsMessageAutomationTask(task))
         {
             return "Restart task";
@@ -2071,12 +2096,17 @@
 
     private static string ScheduledTaskCancelText(ScheduledTaskItem task)
     {
-        return IsMessageAutomationTask(task) ? "Remove automation" : "Cancel task";
+        return IsMessageAutomationTask(task) || IsWebAutomationTask(task) ? "Cancel automation" : "Cancel task";
     }
 
     private static bool IsMessageAutomationTask(ScheduledTaskItem task)
     {
         return task.TaskType == ScheduledTask.MessageAutomationTaskType;
+    }
+
+    private static bool IsWebAutomationTask(ScheduledTaskItem task)
+    {
+        return task.TaskType == ScheduledTask.WebAutomationTaskType;
     }
 
     private static string FormatScheduledCountdown(ScheduledTaskItem task)
