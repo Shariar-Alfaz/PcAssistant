@@ -188,6 +188,7 @@
                                      OnSelectorCaptured="ApplyCapturedSelectorAsync"
                                      OnClickTargetCaptured="ApplyClickTargetAsync"
                                      OnInputTargetCaptured="ApplyInputTargetAsync"
+                                     OnUploadTargetCaptured="ApplyUploadTargetAsync"
                                      OnMessage="ShowMessageAsync" />
                     <StepList Steps="@_steps"
                               SelectedStepId="@_selectedStep?.Id"
@@ -200,7 +201,8 @@
                     <StepEditor Step="@_selectedStep"
                                 OnStepChanged="UpdateSelectedStepAsync"
                                 OnRunStep="RunSelectedStepAsync" />
-                    <RunLogs Logs="@_runLogs" />
+                    <RunLogs Logs="@_runLogs"
+                             OnPreviewScreenshot="ShowScreenshotPreviewAsync" />
                 </div>
             </div>
         }
@@ -239,6 +241,47 @@
     }
 </section>
 
+@if (!string.IsNullOrWhiteSpace(_previewScreenshotPath))
+{
+    <div class="fixed inset-0 z-[70] flex bg-black/80 p-0 text-[#d9e2f1]">
+        <section class="flex h-screen min-h-0 w-screen flex-col overflow-hidden border border-white/10 bg-[#071321] shadow-2xl shadow-black/50">
+            <div class="flex items-start justify-between gap-3 border-b border-white/10 bg-[#101d2f] px-4 py-3 sm:px-6">
+                <div class="min-w-0">
+                    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Screenshot preview</p>
+                    <p class="mt-1 truncate text-xs text-[#aab6c9]" title="@_previewScreenshotPath">@_previewScreenshotPath</p>
+                </div>
+                <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                        type="button"
+                        @onclick="CloseScreenshotPreview">
+                    Close
+                </button>
+            </div>
+            <div class="ui-scrollbar flex min-h-0 flex-1 overflow-auto bg-black/35 p-3 sm:p-5">
+                @if (_isLoadingScreenshotPreview)
+                {
+                    <div class="flex min-h-full w-full items-center justify-center px-4 text-center text-sm text-[#aab6c9]">
+                        Loading screenshot preview...
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_previewScreenshotError))
+                {
+                    <div class="flex min-h-full w-full items-center justify-center px-4">
+                        <p class="w-full max-w-2xl rounded-xl border border-rose-300/20 bg-rose-950/60 px-3 py-3 text-sm text-rose-100">
+                            @_previewScreenshotError
+                        </p>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_previewScreenshotDataUri))
+                {
+                    <img class="mx-auto h-auto w-full max-w-none self-start object-contain"
+                         src="@_previewScreenshotDataUri"
+                         alt="Captured web automation screenshot" />
+                }
+            </div>
+        </section>
+    </div>
+}
+
 @code {
     [Parameter] public Guid ProjectId { get; set; }
 
@@ -258,8 +301,12 @@
     private bool _isRunning;
     private bool _isScheduling;
     private bool _isRefreshingScheduledRuns;
+    private bool _isLoadingScreenshotPreview;
     private Guid? _cancellingTaskId;
     private Guid? _removingTaskId;
+    private string? _previewScreenshotPath;
+    private string? _previewScreenshotDataUri;
+    private string? _previewScreenshotError;
     private string _scheduleDateText = DateTimeOffset.Now.AddMinutes(5).ToString("yyyy-MM-dd");
     private string _scheduleTimeText = DateTimeOffset.Now.AddMinutes(5).ToString("HH:mm");
     private string _repeatMode = ScheduledTask.NoRepeatMode;
@@ -562,6 +609,51 @@
         await LoadAsync(preserveDraft: true);
     }
 
+    private async Task ApplyUploadTargetAsync(string selector)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        if (_selectedStep is null)
+        {
+            var addResult = await Projects.AddStepAsync(new CreateWebAutomationStepRequest(
+                _flow.Id,
+                WebAutomationStepType.UploadFile,
+                WebSelectorType.Css,
+                selector,
+                @"C:\path\to\file.ext",
+                null,
+                "Upload file",
+                _flowTimeout,
+                250,
+                false,
+                false,
+                0));
+            _message = addResult.Succeeded ? "Upload step created from preview target." : addResult.ErrorMessage;
+            _selectedStep = addResult.Value;
+            await LoadAsync(preserveDraft: true);
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            WebAutomationStepType.UploadFile,
+            WebSelectorType.Css,
+            selector,
+            string.IsNullOrWhiteSpace(_selectedStep.Value) ? @"C:\path\to\file.ext" : _selectedStep.Value,
+            null,
+            string.IsNullOrWhiteSpace(_selectedStep.Description) ? "Upload file" : _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount));
+        _message = result.Succeeded ? "Selected step is now a preview upload target." : result.ErrorMessage;
+        await LoadAsync(preserveDraft: true);
+    }
+
     private async Task ScheduleFlowAsync()
     {
         if (_flow is null)
@@ -692,6 +784,51 @@
         return Task.CompletedTask;
     }
 
+    private async Task ShowScreenshotPreviewAsync(string? screenshotPath)
+    {
+        _previewScreenshotPath = string.IsNullOrWhiteSpace(screenshotPath)
+            ? null
+            : screenshotPath;
+        _previewScreenshotDataUri = null;
+        _previewScreenshotError = null;
+
+        if (_previewScreenshotPath is null)
+        {
+            return;
+        }
+
+        _isLoadingScreenshotPreview = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (!File.Exists(_previewScreenshotPath))
+            {
+                _previewScreenshotError = "The captured screenshot file could not be found.";
+                return;
+            }
+
+            var bytes = await File.ReadAllBytesAsync(_previewScreenshotPath);
+            _previewScreenshotDataUri = $"data:{GetImageMimeType(_previewScreenshotPath)};base64,{Convert.ToBase64String(bytes)}";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or PathTooLongException)
+        {
+            _previewScreenshotError = $"The screenshot preview could not be loaded: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingScreenshotPreview = false;
+        }
+    }
+
+    private void CloseScreenshotPreview()
+    {
+        _previewScreenshotPath = null;
+        _previewScreenshotDataUri = null;
+        _previewScreenshotError = null;
+        _isLoadingScreenshotPreview = false;
+    }
+
     private void OpenProjects()
     {
         Navigation.NavigateTo("/automation/web");
@@ -765,11 +902,13 @@
         WebAutomationStepType.AssertText => "Assert text",
         WebAutomationStepType.AssertVisible => "Assert visible",
         WebAutomationStepType.SelectOption => "Select option",
+        WebAutomationStepType.UploadFile => "Upload file",
         _ => type.ToString(),
     };
 
     private static string? DefaultSelector(WebAutomationStepType type) => type switch
     {
+        WebAutomationStepType.UploadFile => "input[type=\"file\"]",
         WebAutomationStepType.Click or WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.WaitForSelector or WebAutomationStepType.ExtractText or WebAutomationStepType.AssertText or WebAutomationStepType.AssertVisible or WebAutomationStepType.SelectOption or WebAutomationStepType.Check or WebAutomationStepType.Uncheck or WebAutomationStepType.Hover => "h1",
         _ => null,
     };
@@ -779,8 +918,21 @@
         WebAutomationStepType.Fill or WebAutomationStepType.Type => "sample text",
         WebAutomationStepType.Press => "Enter",
         WebAutomationStepType.AssertText => "Example Domain",
+        WebAutomationStepType.UploadFile => @"C:\path\to\file.ext",
         _ => null,
     };
+
+    private static string GetImageMimeType(string path)
+    {
+        return Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            _ => "image/png",
+        };
+    }
 
     public async ValueTask DisposeAsync()
     {

@@ -1,0 +1,54 @@
+@using Microsoft.AspNetCore.Components
+
+<div class="@WrapperClass"
+     @onclick="SuppressTooltip"
+     @onmouseleave="ResetTooltip">
+    @ChildContent
+    <div class="@TooltipClass" role="tooltip">
+        <p class="text-[0.68rem] font-bold tracking-[0.14em] text-sky-100 uppercase">@Title</p>
+        <p class="mt-1 text-xs leading-5 text-[#d9e2f1]">@Description</p>
+        <p class="mt-2 rounded-lg border border-white/10 bg-black/25 px-2 py-1.5 text-xs leading-5 text-[#aab6c9]">@HowToUse</p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Description { get; set; } = string.Empty;
+    [Parameter] public string HowToUse { get; set; } = string.Empty;
+    [Parameter] public string Position { get; set; } = "bottom";
+    [Parameter] public string WrapperCssClass { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _isSuppressed;
+    private string WrapperClass => $"group/tooltip relative inline-flex min-w-0 {WrapperCssClass}".Trim();
+
+    private string TooltipClass
+    {
+        get
+        {
+            var positionClass = Position switch
+            {
+                "right" => "left-full top-0 ml-3",
+                "left" => "right-full top-0 mr-3",
+                "responsive-right" => "left-0 top-full mt-2 xl:left-full xl:top-0 xl:mt-0 xl:ml-3",
+                _ => "left-1/2 top-full mt-2 -translate-x-1/2",
+            };
+
+            var visibilityClass = _isSuppressed
+                ? "invisible opacity-0"
+                : "invisible opacity-0 group-hover/tooltip:visible group-hover/tooltip:opacity-100";
+
+            return $"pointer-events-none absolute {positionClass} z-[60] w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-sky-300/20 bg-[#0b1427]/98 p-3 text-left shadow-2xl shadow-black/50 ring-1 ring-white/10 transition {visibilityClass}";
+        }
+    }
+
+    private void SuppressTooltip()
+    {
+        _isSuppressed = true;
+    }
+
+    private void ResetTooltip()
+    {
+        _isSuppressed = false;
+    }
+}

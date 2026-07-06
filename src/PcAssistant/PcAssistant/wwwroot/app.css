@@ -110,10 +110,172 @@ body {
     grid-template-columns: 4.75rem minmax(0, 1fr);
 }
 
+.pc-app-shell {
+    isolation: isolate;
+    position: relative;
+}
+
+.pc-app-main,
+.copilot-sidebar {
+    position: relative;
+    z-index: 1;
+}
+
+.pc-app-background {
+    background:
+        radial-gradient(circle at 18% -8%, rgba(14, 165, 233, 0.2), transparent 30rem),
+        radial-gradient(circle at 96% 18%, rgba(45, 212, 191, 0.12), transparent 28rem),
+        linear-gradient(180deg, #07111f 0%, #0c1e30 50%, #070d18 100%);
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    position: fixed;
+    z-index: 0;
+}
+
+.pc-chat-background {
+    background:
+        radial-gradient(circle at 24% 6%, rgba(14, 165, 233, 0.22), transparent 30rem),
+        radial-gradient(circle at 88% 42%, rgba(45, 212, 191, 0.16), transparent 28rem),
+        linear-gradient(180deg, #07111f 0%, #0c1b2b 54%, #060b15 100%);
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    position: absolute;
+    z-index: 0;
+}
+
+.pc-app-background > span,
+.pc-chat-background > span {
+    display: block;
+    position: absolute;
+}
+
+.pc-bg-grid {
+    background:
+        linear-gradient(rgba(142, 197, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(142, 197, 255, 0.06) 1px, transparent 1px);
+    background-position: 0 0, 0 0;
+    background-size: 4rem 4rem;
+    inset: -8rem;
+    opacity: 0.58;
+    transform: perspective(54rem) rotateX(62deg) translateY(-12rem);
+    transform-origin: center top;
+}
+
+.pc-bg-sweep {
+    background: linear-gradient(105deg, transparent 0%, rgba(125, 211, 252, 0.34) 48%, transparent 68%);
+    height: 42%;
+    left: -24%;
+    opacity: 0.38;
+    top: 8%;
+    transform: skewX(-18deg);
+    width: 92%;
+}
+
+.pc-bg-circuit {
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-left-color: transparent;
+    border-radius: 0;
+    box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.05);
+    height: 16rem;
+    opacity: 0.54;
+    width: 32rem;
+}
+
+.pc-bg-circuit::before,
+.pc-bg-circuit::after {
+    background: rgba(125, 211, 252, 0.18);
+    content: "";
+    position: absolute;
+}
+
+.pc-bg-circuit::before {
+    height: 1px;
+    left: 14%;
+    right: 12%;
+    top: 38%;
+}
+
+.pc-bg-circuit::after {
+    bottom: 18%;
+    height: 34%;
+    right: 22%;
+    width: 1px;
+}
+
+.pc-bg-circuit-a {
+    right: -6rem;
+    top: 2rem;
+}
+
+.pc-bg-circuit-b {
+    bottom: 4rem;
+    left: 18%;
+    transform: scaleX(-1);
+}
+
+.pc-bg-signal {
+    background: linear-gradient(90deg, transparent, rgba(45, 212, 191, 0.18), transparent);
+    background-size: 10rem 100%;
+    height: 1px;
+    left: 7%;
+    opacity: 0.42;
+    right: 7%;
+}
+
+.pc-bg-signal-a {
+    top: 31%;
+}
+
+.pc-bg-signal-b {
+    bottom: 22%;
+}
+
+.pc-chat-surface {
+    background: transparent;
+    isolation: isolate;
+}
+
+.pc-chat-surface-shade {
+    background:
+        radial-gradient(circle at 42% 20%, rgba(142, 197, 255, 0.08), transparent 24rem),
+        linear-gradient(110deg, rgba(7, 13, 24, 0.02) 0%, rgba(7, 13, 24, 0.24) 74%, rgba(7, 13, 24, 0.48) 100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.pc-page-surface {
+    background: transparent;
+    isolation: isolate;
+    position: relative;
+}
+
+.pc-page-surface::before {
+    background:
+        radial-gradient(circle at 38% 8%, rgba(142, 197, 255, 0.08), transparent 22rem),
+        linear-gradient(110deg, rgba(7, 13, 24, 0.02), rgba(7, 13, 24, 0.36));
+    content: "";
+    inset: 0;
+    pointer-events: none;
+    position: fixed;
+    z-index: -1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pc-bg-grid,
+    .pc-bg-sweep,
+    .pc-bg-circuit,
+    .pc-bg-signal {
+        transition: none;
+    }
+}
+
 .copilot-sidebar {
     position: sticky;
     top: 0;
-    transition: padding 240ms ease;
+    transition: width 260ms ease, padding 240ms ease;
+    will-change: width;
 }
 
 .copilot-sidebar .copilot-nav-item span {
@@ -196,7 +358,22 @@ input[type="time"],
 input[type="datetime-local"],
 input[type="month"],
 input[type="week"] {
+    background-position: right 0.85rem center;
+    background-repeat: no-repeat;
+    background-size: 1.05rem 1.05rem;
     color-scheme: dark;
+    padding-right: 2.75rem;
+}
+
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"] {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M16 2v4'/%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M3 10h18'/%3E%3Cpath d='M8 14h.01'/%3E%3Cpath d='M12 14h.01'/%3E%3Cpath d='M16 14h.01'/%3E%3Cpath d='M8 18h.01'/%3E%3Cpath d='M12 18h.01'/%3E%3C/svg%3E");
+}
+
+input[type="time"] {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E");
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
@@ -204,9 +381,14 @@ input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator,
 input[type="month"]::-webkit-calendar-picker-indicator,
 input[type="week"]::-webkit-calendar-picker-indicator {
+    background-color: transparent;
     cursor: pointer;
-    filter: invert(88%) sepia(20%) saturate(684%) hue-rotate(178deg) brightness(103%) contrast(101%);
-    opacity: 0.9;
+    filter: none;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    padding: 0;
+    width: 2.25rem;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
@@ -214,16 +396,23 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
 input[type="month"]::-webkit-calendar-picker-indicator:hover,
 input[type="week"]::-webkit-calendar-picker-indicator:hover {
-    opacity: 1;
+    background-color: transparent;
+    opacity: 0;
+}
+
+input[type="date"]:disabled::-webkit-calendar-picker-indicator,
+input[type="time"]:disabled::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:disabled::-webkit-calendar-picker-indicator,
+input[type="month"]:disabled::-webkit-calendar-picker-indicator,
+input[type="week"]:disabled::-webkit-calendar-picker-indicator {
+    opacity: 0;
 }
 
 .web-automation-builder-shell {
+    --web-automation-sticky-top: 0rem;
     position: relative;
     isolation: isolate;
-    background:
-        radial-gradient(circle at 18% 0%, rgba(14, 165, 233, 0.18), transparent 28rem),
-        radial-gradient(circle at 82% 18%, rgba(45, 212, 191, 0.12), transparent 26rem),
-        linear-gradient(180deg, #071321 0%, #0d2134 52%, #08101d 100%);
+    background: transparent;
 }
 
 .web-automation-builder-content {
@@ -271,17 +460,80 @@ input[type="week"]::-webkit-calendar-picker-indicator:hover {
     align-self: start;
     height: max-content;
     position: sticky;
-    top: 1rem;
+    top: var(--web-automation-sticky-top);
     z-index: 2;
 }
 
 .web-automation-panel-stack {
-    max-height: calc(100vh - 2rem);
-    overflow-y: auto;
+    height: calc(100vh - var(--web-automation-sticky-top));
+    overflow: hidden;
+}
+
+.web-automation-properties-panel {
+    flex-shrink: 0;
+}
+
+.web-automation-run-logs {
+    overflow: hidden;
 }
 
 .web-automation-step-card {
+    cursor: pointer;
+    min-height: 6.95rem;
+    transform-origin: center;
+    user-select: none;
     will-change: transform, opacity, box-shadow;
+}
+
+.web-automation-step-card:has(.web-automation-step-handle:hover),
+.web-automation-step-card:has(.web-automation-step-handle:focus-visible) {
+    border-color: rgba(125, 211, 252, 0.42);
+    box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.14), 0 16px 42px rgba(0, 0, 0, 0.24);
+}
+
+.web-automation-step-handle {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.55rem;
+    color: rgba(217, 226, 241, 0.84);
+    cursor: grab;
+    display: inline-flex;
+    flex-shrink: 0;
+    height: 1.75rem;
+    justify-content: center;
+    margin-top: 0.125rem;
+    transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+    width: 1.75rem;
+}
+
+.web-automation-step-handle:hover,
+.web-automation-step-handle:focus-visible {
+    background: rgba(125, 211, 252, 0.14);
+    border-color: rgba(125, 211, 252, 0.42);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.web-automation-step-handle:active,
+.web-automation-step-card.sortable-chosen .web-automation-step-handle,
+.web-automation-step-card.sortable-drag .web-automation-step-handle {
+    cursor: grabbing;
+}
+
+.web-automation-step-grip {
+    background-image: radial-gradient(circle, currentColor 1.2px, transparent 1.3px);
+    background-position: 0 0;
+    background-size: 5px 5px;
+    display: block;
+    height: 15px;
+    opacity: 0.72;
+    width: 10px;
+}
+
+.web-automation-step-list-sorting .web-automation-step-card {
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .web-automation-step-card.sortable-chosen {
@@ -290,7 +542,104 @@ input[type="week"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .web-automation-step-card.sortable-ghost {
-    opacity: 0.35;
+    background: rgba(56, 189, 248, 0.22) !important;
+    border: 1px solid rgba(125, 211, 252, 0.78) !important;
+    box-shadow: 0 0 22px rgba(56, 189, 248, 0.22) !important;
+    min-height: 1rem !important;
+    opacity: 1 !important;
+    overflow: hidden;
+    padding-bottom: 0 !important;
+    padding-top: 0 !important;
+}
+
+.web-automation-step-card.sortable-ghost > * {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.web-automation-step-card.sortable-drag,
+.web-automation-step-card.sortable-fallback,
+.sortable-fallback.web-automation-step-card {
+    background: rgba(17, 31, 50, 0.98) !important;
+    border-color: rgba(125, 211, 252, 0.65) !important;
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(125, 211, 252, 0.2) !important;
+    cursor: grabbing !important;
+    opacity: 0.96 !important;
+    pointer-events: none;
+    transition: none !important;
+    z-index: 100000 !important;
+}
+
+.sortable-fallback.web-automation-step-card {
+    position: fixed !important;
+    transform-origin: top left !important;
+    will-change: transform, top, left !important;
+}
+
+.web-upload-drop-active {
+    background: rgba(16, 185, 129, 0.18) !important;
+    border-color: rgba(110, 231, 183, 0.72) !important;
+    box-shadow: inset 0 0 24px rgba(16, 185, 129, 0.14), 0 0 26px rgba(16, 185, 129, 0.18);
+    color: #d1fae5 !important;
+}
+
+.web-upload-file-rail {
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 999px;
+    display: block;
+    height: 0.42rem;
+    overflow: hidden;
+}
+
+.web-upload-file-rail-fill {
+    background: linear-gradient(90deg, rgba(52, 211, 153, 0.92), rgba(56, 189, 248, 0.92));
+    border-radius: inherit;
+    display: block;
+    height: 100%;
+    transform: scaleX(1);
+    transform-origin: left center;
+}
+
+.web-upload-file-tile {
+    flex: 1 1 10rem;
+    max-width: 100%;
+    transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.web-upload-file-tile:hover {
+    background: rgba(15, 30, 49, 0.78);
+    border-color: rgba(110, 231, 183, 0.24);
+    transform: translateY(-1px);
+}
+
+.web-upload-file-badge-remove {
+    align-items: center;
+    background: rgba(244, 63, 94, 0.12);
+    border: 1px solid rgba(253, 164, 175, 0.24);
+    border-radius: 999px;
+    color: #fecdd3;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 1.55rem;
+    justify-content: center;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+    width: 1.55rem;
+}
+
+.web-upload-file-badge-remove:hover,
+.web-upload-file-badge-remove:focus-visible {
+    background: rgba(244, 63, 94, 0.22);
+    border-color: rgba(253, 164, 175, 0.5);
+    color: #fff1f2;
+    outline: none;
+    transform: scale(1.06);
+}
+
+.web-upload-file-badge-remove svg {
+    height: 0.85rem;
+    width: 0.85rem;
 }
 
 .web-automation-step-placeholder {

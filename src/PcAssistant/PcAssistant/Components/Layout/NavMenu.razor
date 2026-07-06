@@ -4,11 +4,14 @@
 @implements IDisposable
 
 <aside class="@SidebarClass">
-    <div class="flex items-center justify-between px-2">
-        <a class="@SidebarBrandClass" href="">
-            <img class="size-8 shrink-0 rounded-lg" src="images/appicon.png" alt="" />
-            <span class="@SidebarBrandTextClass">PcAssistant</span>
-        </a>
+    <div class="@SidebarHeaderClass">
+        @if (!_isSidebarCollapsed)
+        {
+            <a class="@SidebarBrandClass" href="">
+                <img class="size-8 shrink-0 rounded-lg" src="images/appicon.png" alt="" />
+                <span class="@SidebarBrandTextClass">PcAssistant</span>
+            </a>
+        }
         <button class="flex size-8 items-center justify-center rounded-lg text-[#c9d2e3] transition hover:bg-white/10"
                 type="button"
                 title="@SidebarToggleTitle"
@@ -96,17 +99,17 @@
         ? "copilot-sidebar copilot-sidebar-collapsed flex h-screen min-h-0 w-[4.75rem] min-w-0 flex-col overflow-hidden bg-[#0d101a] px-3 py-4 text-[#d8deeb]"
         : "copilot-sidebar flex h-screen min-h-0 w-[16.75rem] min-w-0 flex-col overflow-hidden bg-[#0d101a] px-3 py-4 text-[#d8deeb]";
 
-    private string SidebarBrandClass => _isSidebarCollapsed
-        ? "flex min-w-0 items-center gap-0 overflow-hidden whitespace-nowrap text-lg font-semibold tracking-normal text-white"
-        : "flex min-w-0 items-center gap-3 text-lg font-semibold tracking-normal text-white";
+    private string SidebarHeaderClass => _isSidebarCollapsed
+        ? "flex items-center justify-center px-2 transition-all duration-300"
+        : "flex items-center justify-between px-2 transition-all duration-300";
 
-    private string SidebarBrandTextClass => _isSidebarCollapsed
-        ? "w-0 overflow-hidden opacity-0"
-        : "min-w-0 truncate opacity-100";
+    private const string SidebarBrandClass = "flex min-w-0 items-center gap-3 text-lg font-semibold tracking-normal text-white transition-all duration-300";
+
+    private const string SidebarBrandTextClass = "min-w-0 truncate opacity-100 transition-all duration-300";
 
     private string SidebarTextClass => _isSidebarCollapsed
-        ? "w-0 overflow-hidden whitespace-nowrap opacity-0"
-        : "min-w-0 truncate opacity-100";
+        ? "w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300"
+        : "min-w-0 truncate opacity-100 transition-all duration-300";
 
     private string SidebarFullOnlyClass => _isSidebarCollapsed
         ? "hidden"
@@ -118,7 +121,7 @@
 
     private string SidebarProfileTextClass => _isSidebarCollapsed
         ? "hidden"
-        : "min-w-0 flex-1";
+        : "min-w-0 flex-1 transition-all duration-300";
 
     private string SidebarToggleTitle => _isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
 

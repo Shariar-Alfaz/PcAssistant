@@ -141,6 +141,13 @@ internal sealed class PlaywrightWebAutomationService : IWebAutomationService
                     await locator!.SelectOptionAsync(step.Value ?? string.Empty, new LocatorSelectOptionOptions { Timeout = step.TimeoutMs });
                     message = "Selected option.";
                     break;
+                case WebAutomationStepType.UploadFile:
+                    var filePaths = NormalizeUploadPaths(step.Value);
+                    await locator!.SetInputFilesAsync(filePaths, new LocatorSetInputFilesOptions { Timeout = step.TimeoutMs });
+                    message = filePaths.Length == 1
+                        ? $"Uploaded {Path.GetFileName(filePaths[0])}."
+                        : $"Uploaded {filePaths.Length} files.";
+                    break;
                 case WebAutomationStepType.Check:
                     await locator!.CheckAsync(new LocatorCheckOptions { Timeout = step.TimeoutMs });
                     message = "Checked element.";
@@ -240,6 +247,34 @@ internal sealed class PlaywrightWebAutomationService : IWebAutomationService
     private static AriaRole ParseRole(string? role)
     {
         return Enum.TryParse<AriaRole>(role, ignoreCase: true, out var parsed) ? parsed : AriaRole.Button;
+    }
+
+    private static string[] NormalizeUploadPaths(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException("Upload file path is required.");
+        }
+
+        var paths = value
+            .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(path => Path.GetFullPath(Environment.ExpandEnvironmentVariables(path)))
+            .ToArray();
+
+        if (paths.Length == 0)
+        {
+            throw new InvalidOperationException("Upload file path is required.");
+        }
+
+        foreach (var path in paths)
+        {
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException("Upload file was not found.", path);
+            }
+        }
+
+        return paths;
     }
 
     private static bool RequiresLocator(WebAutomationStepType stepType)

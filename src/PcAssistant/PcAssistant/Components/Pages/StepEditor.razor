@@ -1,7 +1,12 @@
 @using Microsoft.AspNetCore.Components.Web
+@using PcAssistant.Application.Abstractions.Services
 @using PcAssistant.Domain.Enums
+@inject IJSRuntime JsRuntime
+@inject ILocationPickerService LocationPicker
 
-<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+@implements IAsyncDisposable
+
+<section class="web-automation-properties-panel rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
     <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Properties</p>
     <h2 class="mt-1 text-base font-semibold text-white">Step editor</h2>
 
@@ -43,6 +48,10 @@
                 @if (_stepType == WebAutomationStepType.Press)
                 {
                     @KeyCaptureField(ValueLabel(_stepType), _value, value => _value = value)
+                }
+                else if (_stepType == WebAutomationStepType.UploadFile)
+                {
+                    @FileUploadField(ValueLabel(_stepType), _value, value => _value = value)
                 }
                 else
                 {
@@ -115,9 +124,15 @@
     private int _retryCount;
     private bool _isOptional;
     private bool _takeScreenshot;
+    private DotNetObjectReference<StepEditor>? _reference;
+    private string? _uploadDropMessage;
+    private readonly string UploadDropZoneId = $"web-upload-drop-{Guid.NewGuid():N}";
+    private readonly string UploadRailId = $"web-upload-rail-{Guid.NewGuid():N}";
+    private string? _lastUploadRailSignature;
     private const string SelectClass = "mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-[#111b2e] px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10";
     private string TimingGridClass => VisibleTimingFields <= 1 ? "grid gap-2" : VisibleTimingFields == 2 ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2";
     private int VisibleTimingFields => (UsesTimeout(_stepType) ? 1 : 0) + (UsesDelay(_stepType) ? 1 : 0) + (UsesRetry(_stepType) ? 1 : 0);
+    private IReadOnlyList<string> UploadFilePaths => SplitUploadFilePaths(_value);
 
     protected override void OnParametersSet()
     {
@@ -154,6 +169,24 @@
         _retryCount = Step.RetryCount;
         _isOptional = Step.IsOptional;
         _takeScreenshot = Step.TakeScreenshotAfterStep;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_stepType != WebAutomationStepType.UploadFile)
+        {
+            return;
+        }
+
+        _reference ??= DotNetObjectReference.Create(this);
+        await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.bindUploadDropZone", UploadDropZoneId, _reference);
+
+        var uploadSignature = string.Join("|", UploadFilePaths);
+        if (!string.Equals(uploadSignature, _lastUploadRailSignature, StringComparison.Ordinal))
+        {
+            _lastUploadRailSignature = uploadSignature;
+            await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.animateUploadRail", UploadRailId, UploadFilePaths.Count);
+        }
     }
 
     private Task SaveAsync()
@@ -200,6 +233,63 @@
                @onkeydown:stopPropagation="true" />
     </label>;
 
+    private RenderFragment FileUploadField(string label, string? value, Action<string> onChange) => @<div class="block">
+        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">@label</span>
+        @if (UploadFilePaths.Count > 0)
+        {
+            <span class="mt-1 flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-2">
+                <span class="min-w-0 text-xs font-semibold text-[#dce9ff]">@UploadFilePaths.Count selected</span>
+                <button class="web-upload-file-badge-remove"
+                        type="button"
+                        title="Remove all files"
+                        aria-label="Remove all files"
+                        @onclick="ClearUploadFiles">
+                    @RemoveIcon()
+                </button>
+            </span>
+            <span id="@UploadRailId" class="web-upload-file-rail mt-2" data-upload-count="@UploadFilePaths.Count" aria-hidden="true">
+                <span class="web-upload-file-rail-fill"></span>
+            </span>
+            <span class="mt-2 flex flex-wrap gap-2">
+                @for (var index = 0; index < UploadFilePaths.Count; index++)
+                {
+                    var fileIndex = index;
+                    var path = UploadFilePaths[fileIndex];
+                    <span class="web-upload-file-tile relative flex min-h-20 min-w-0 items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2.5 pr-9" title="@path">
+                        <span class="flex min-w-0 items-center gap-2">
+                            <span class="@UploadFileIconClass(path)" aria-hidden="true">@UploadFileIcon(path)</span>
+                            <span class="min-w-0">
+                                <span class="block truncate text-xs font-semibold text-white">@Path.GetFileName(path)</span>
+                                <span class="mt-0.5 block text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[#8fa1bc]">@UploadFileTypeLabel(path)</span>
+                            </span>
+                        </span>
+                        <button class="web-upload-file-badge-remove absolute right-2 top-2"
+                                type="button"
+                                title="Remove file"
+                                aria-label="Remove file"
+                                @onclick="() => RemoveUploadFile(fileIndex)">
+                            @RemoveIcon()
+                        </button>
+                    </span>
+                }
+            </span>
+        }
+        <span id="@UploadDropZoneId"
+              class="mt-2 flex min-h-20 items-center justify-center rounded-xl border border-dashed border-emerald-300/25 bg-black/20 px-3 py-3 text-center text-xs font-semibold text-emerald-100 transition"
+              data-web-upload-drop-zone="true">
+            Drop file(s) here
+        </span>
+        @if (!string.IsNullOrWhiteSpace(_uploadDropMessage))
+        {
+            <span class="mt-2 block rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-[#aab6c9]">@_uploadDropMessage</span>
+        }
+        <button class="mt-2 w-full rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/15"
+                type="button"
+                @onclick="PickUploadFilesAsync">
+            Select file(s)
+        </button>
+    </div>;
+
     private RenderFragment NumberField(string label, int value, Action<int> onChange) => @<label class="block">
         <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">@label</span>
         <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
@@ -220,7 +310,8 @@
             or WebAutomationStepType.Hover
             or WebAutomationStepType.ExtractText
             or WebAutomationStepType.AssertText
-            or WebAutomationStepType.AssertVisible;
+            or WebAutomationStepType.AssertVisible
+            or WebAutomationStepType.UploadFile;
     }
 
     private static bool UsesValue(WebAutomationStepType stepType)
@@ -229,7 +320,8 @@
             or WebAutomationStepType.Type
             or WebAutomationStepType.Press
             or WebAutomationStepType.SelectOption
-            or WebAutomationStepType.AssertText;
+            or WebAutomationStepType.AssertText
+            or WebAutomationStepType.UploadFile;
     }
 
     private static bool UsesUrl(WebAutomationStepType stepType)
@@ -276,6 +368,7 @@
             WebAutomationStepType.Press => "Key",
             WebAutomationStepType.SelectOption => "Option",
             WebAutomationStepType.AssertText => "Expected text",
+            WebAutomationStepType.UploadFile => "Files",
             _ => "Value",
         };
     }
@@ -283,6 +376,73 @@
     private static string DelayLabel(WebAutomationStepType stepType)
     {
         return stepType == WebAutomationStepType.Wait ? "Duration" : "Delay";
+    }
+
+    private async Task PickUploadFilesAsync()
+    {
+        var paths = await LocationPicker.PickFilesAsync(allowMultiple: true);
+        if (paths.Count == 0)
+        {
+            return;
+        }
+
+        _value = string.Join(Environment.NewLine, paths);
+        _uploadDropMessage = $"{paths.Count} selected.";
+    }
+
+    [JSInvokable]
+    public async Task ReceiveDroppedUploadFilesAsync(DroppedUploadFile[] files)
+    {
+        if (files.Length == 0)
+        {
+            _uploadDropMessage = "No files were dropped.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var dropDirectory = Path.Combine(Path.GetTempPath(), "PcAssistant", "WebAutomationUploads", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dropDirectory);
+        var paths = new List<string>(files.Length);
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in files)
+        {
+            var safeFileName = GetUniqueFileName(GetSafeFileName(file.Name), usedNames);
+            var path = Path.Combine(dropDirectory, safeFileName);
+            await File.WriteAllBytesAsync(path, Convert.FromBase64String(file.Base64));
+            paths.Add(path);
+        }
+
+        _value = string.Join(Environment.NewLine, paths);
+        _uploadDropMessage = files.Length == 1 ? "1 dropped file ready." : $"{files.Length} dropped files ready.";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void RemoveUploadFile(int index)
+    {
+        var paths = UploadFilePaths.ToList();
+        if (index < 0 || index >= paths.Count)
+        {
+            return;
+        }
+
+        var removedName = Path.GetFileName(paths[index]);
+        paths.RemoveAt(index);
+        _value = string.Join(Environment.NewLine, paths);
+        _uploadDropMessage = paths.Count == 0
+            ? "All upload files removed."
+            : $"Removed {removedName}.";
+    }
+
+    private void ClearUploadFiles()
+    {
+        _value = string.Empty;
+        _uploadDropMessage = "All upload files removed.";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.unbindUploadDropZone", UploadDropZoneId);
+        _reference?.Dispose();
     }
 
     private static void CaptureKeyPress(KeyboardEventArgs args, Action<string> onChange)
@@ -323,5 +483,110 @@
             { Length: 1 } value => value.ToUpperInvariant(),
             _ => key,
         };
+    }
+
+    private static string GetSafeFileName(string? fileName)
+    {
+        var safeName = Path.GetFileName(string.IsNullOrWhiteSpace(fileName) ? "upload.bin" : fileName);
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            safeName = safeName.Replace(invalid, '_');
+        }
+
+        return string.IsNullOrWhiteSpace(safeName) ? "upload.bin" : safeName;
+    }
+
+    private static IReadOnlyList<string> SplitUploadFilePaths(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? Array.Empty<string>()
+            : value
+                .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToArray();
+    }
+
+    private static string UploadFileIconClass(string path)
+    {
+        var colorClass = GetUploadFileKind(path) switch
+        {
+            "image" => "border-cyan-300/25 bg-cyan-300/15 text-cyan-200",
+            "pdf" => "border-rose-300/25 bg-rose-300/15 text-rose-200",
+            "archive" => "border-amber-300/25 bg-amber-300/15 text-amber-100",
+            "sheet" => "border-emerald-300/25 bg-emerald-300/15 text-emerald-100",
+            "document" => "border-sky-300/25 bg-sky-300/15 text-sky-100",
+            "code" => "border-indigo-300/25 bg-indigo-300/15 text-indigo-100",
+            _ => "border-white/10 bg-white/8 text-[#dce9ff]",
+        };
+
+        return $"flex size-8 shrink-0 items-center justify-center rounded-lg border [&_svg]:size-4 {colorClass}";
+    }
+
+    private static MarkupString UploadFileIcon(string path)
+    {
+        var body = GetUploadFileKind(path) switch
+        {
+            "image" => """<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L9 18"/>""",
+            "pdf" => """<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M8 16h8"/><path d="M8 12h3"/>""",
+            "archive" => """<path d="M6 3h12v18H6z"/><path d="M10 3v18"/><path d="M10 7h2"/><path d="M10 11h2"/><path d="M10 15h2"/>""",
+            "sheet" => """<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M8 12h8"/><path d="M8 16h8"/><path d="M11 9v10"/>""",
+            "document" => """<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M8 13h8"/><path d="M8 17h6"/>""",
+            "code" => """<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/><path d="m10 13-2 2 2 2"/><path d="m14 13 2 2-2 2"/>""",
+            _ => """<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M8 15h8"/>""",
+        };
+
+        return new MarkupString($"""<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{body}</svg>""");
+    }
+
+    private static MarkupString RemoveIcon()
+    {
+        return new MarkupString("""<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>""");
+    }
+
+    private static string UploadFileTypeLabel(string path)
+    {
+        var extension = Path.GetExtension(path);
+        return string.IsNullOrWhiteSpace(extension)
+            ? GetUploadFileKind(path)
+            : extension.TrimStart('.').ToUpperInvariant();
+    }
+
+    private static string GetUploadFileKind(string path)
+    {
+        return Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".svg" => "image",
+            ".pdf" => "pdf",
+            ".zip" or ".rar" or ".7z" or ".tar" or ".gz" => "archive",
+            ".xls" or ".xlsx" or ".csv" or ".ods" => "sheet",
+            ".doc" or ".docx" or ".txt" or ".rtf" or ".md" or ".odt" => "document",
+            ".html" or ".css" or ".js" or ".ts" or ".json" or ".xml" or ".cs" or ".py" or ".java" or ".cpp" or ".sql" => "code",
+            _ => "file",
+        };
+    }
+
+    private static string GetUniqueFileName(string fileName, ISet<string> usedNames)
+    {
+        if (usedNames.Add(fileName))
+        {
+            return fileName;
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        for (var index = 2; ; index++)
+        {
+            var candidate = $"{baseName}-{index}{extension}";
+            if (usedNames.Add(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    public sealed class DroppedUploadFile
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string Base64 { get; set; } = string.Empty;
     }
 }

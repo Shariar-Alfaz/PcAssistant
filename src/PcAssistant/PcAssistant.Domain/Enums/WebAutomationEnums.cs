@@ -17,6 +17,7 @@ public enum WebAutomationStepType
     ExtractText = 12,
     AssertText = 13,
     AssertVisible = 14,
+    UploadFile = 15,
 }
 
 public enum WebSelectorType

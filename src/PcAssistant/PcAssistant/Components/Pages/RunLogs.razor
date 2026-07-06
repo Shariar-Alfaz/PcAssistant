@@ -1,4 +1,4 @@
-<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+<section class="web-automation-run-logs flex min-h-0 flex-1 flex-col rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
     <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Run logs</p>
     <h2 class="mt-1 text-base font-semibold text-white">History</h2>
 
@@ -8,7 +8,7 @@
     }
     else
     {
-        <div class="ui-scrollbar mt-4 grid max-h-[30rem] gap-3 overflow-y-auto pr-1">
+        <div class="ui-scrollbar mt-4 grid min-h-0 flex-1 gap-3 overflow-y-auto pr-1">
             @foreach (var run in Logs)
             {
                 <article class="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
@@ -31,7 +31,12 @@
                                     <span class="font-semibold text-white">#@log.OrderIndex @log.Status</span>
                                     @if (!string.IsNullOrWhiteSpace(log.ScreenshotPath))
                                     {
-                                        <span class="truncate text-[#8fa1bc]" title="@log.ScreenshotPath">Screenshot</span>
+                                        <button class="shrink-0 rounded-lg border border-sky-300/20 bg-sky-300/10 px-2 py-1 text-[0.68rem] font-semibold text-sky-100 transition hover:bg-sky-300/15"
+                                                type="button"
+                                                title="@log.ScreenshotPath"
+                                                @onclick="() => OnPreviewScreenshot.InvokeAsync(log.ScreenshotPath)">
+                                            Preview
+                                        </button>
                                     }
                                 </div>
                                 @if (!string.IsNullOrWhiteSpace(log.Message))
@@ -57,6 +62,7 @@
 
 @code {
     [Parameter] public IReadOnlyList<WebAutomationRunDto> Logs { get; set; } = Array.Empty<WebAutomationRunDto>();
+    [Parameter] public EventCallback<string?> OnPreviewScreenshot { get; set; }
 
     private static string StatusClass(string status)
     {

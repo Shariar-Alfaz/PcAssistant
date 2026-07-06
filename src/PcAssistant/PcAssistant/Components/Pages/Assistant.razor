@@ -94,8 +94,16 @@
         </div>
     </aside>
 
-    <main class="relative h-screen min-h-0 min-w-0 overflow-hidden bg-[radial-gradient(circle_at_44%_68%,rgba(210,213,207,0.75),transparent_0.15rem),radial-gradient(circle_at_39%_72%,rgba(249,250,244,0.85),transparent_0.18rem),radial-gradient(circle_at_48%_78%,rgba(236,238,232,0.75),transparent_0.12rem),linear-gradient(180deg,#00466c_0%,#06475f_22%,#7a8d91_53%,#062536_76%,#020812_100%)]">
-        <div class="absolute inset-0 bg-[radial-gradient(circle_at_35%_72%,rgba(255,255,255,0.28),transparent_0.18rem),radial-gradient(circle_at_34.5%_72.4%,rgba(244,179,69,0.8),transparent_0.09rem),radial-gradient(circle_at_79%_61%,rgba(255,255,255,0.22),transparent_0.16rem),linear-gradient(110deg,transparent_0%,rgba(0,0,0,0.18)_62%,rgba(0,0,0,0.62)_100%)]"></div>
+    <main class="pc-chat-surface relative h-screen min-h-0 min-w-0 overflow-hidden">
+        <div class="pc-chat-background" aria-hidden="true">
+            <span class="pc-bg-grid"></span>
+            <span class="pc-bg-sweep"></span>
+            <span class="pc-bg-circuit pc-bg-circuit-a"></span>
+            <span class="pc-bg-circuit pc-bg-circuit-b"></span>
+            <span class="pc-bg-signal pc-bg-signal-a"></span>
+            <span class="pc-bg-signal pc-bg-signal-b"></span>
+        </div>
+        <div class="pc-chat-surface-shade absolute inset-0"></div>
         <div class="relative z-10 flex h-screen min-h-0 flex-col px-5 py-4 sm:px-8">
             @if (_isLoadingChats)
             {
@@ -427,7 +435,7 @@
 
     private bool IsSendDisabled => _isBusy || string.IsNullOrWhiteSpace(BuildCommandText());
 
-    private string ShellClass => "h-screen min-w-0 bg-[#080b16] text-[#d9e2f1]";
+    private string ShellClass => "h-screen min-w-0 bg-transparent text-[#d9e2f1]";
 
     private string SidebarClass => "hidden";
 

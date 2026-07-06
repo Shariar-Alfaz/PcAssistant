@@ -37,4 +37,41 @@ public sealed class LocationPickerService : ILocationPickerService
         return null;
 #endif
     }
+
+    public async Task<IReadOnlyList<string>> PickFilesAsync(bool allowMultiple = true, CancellationToken cancellationToken = default)
+    {
+#if WINDOWS
+        var window = global::Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()?.Handler?.PlatformView;
+        if (window is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var picker = new FileOpenPicker();
+        picker.FileTypeFilter.Add("*");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(window));
+
+        if (allowMultiple)
+        {
+            var files = await picker.PickMultipleFilesAsync();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Array.Empty<string>();
+            }
+
+            return files.Select(file => file.Path).Where(path => !string.IsNullOrWhiteSpace(path)).ToArray();
+        }
+
+        var file = await picker.PickSingleFileAsync();
+        if (file is null || cancellationToken.IsCancellationRequested)
+        {
+            return Array.Empty<string>();
+        }
+
+        return new[] { file.Path };
+#else
+        await Task.CompletedTask;
+        return Array.Empty<string>();
+#endif
+    }
 }

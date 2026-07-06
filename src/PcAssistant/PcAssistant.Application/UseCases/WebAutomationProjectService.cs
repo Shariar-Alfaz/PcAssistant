@@ -469,7 +469,7 @@ public sealed class WebAutomationProjectService(
             return $"{stepType} requires a selector.";
         }
 
-        if (stepType is WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.Press or WebAutomationStepType.AssertText
+        if (stepType is WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.Press or WebAutomationStepType.AssertText or WebAutomationStepType.UploadFile
             && string.IsNullOrWhiteSpace(value))
         {
             return $"{stepType} requires a value.";
@@ -490,7 +490,8 @@ public sealed class WebAutomationProjectService(
             or WebAutomationStepType.Hover
             or WebAutomationStepType.ExtractText
             or WebAutomationStepType.AssertText
-            or WebAutomationStepType.AssertVisible;
+            or WebAutomationStepType.AssertVisible
+            or WebAutomationStepType.UploadFile;
     }
 
     private static string? ValidateTimeout(int timeoutMs)

@@ -10,7 +10,7 @@
         <span class="text-xs text-[#8fa1bc]">Drag to reorder</span>
     </div>
 
-    <div id="@ListId" class="mt-4 grid gap-2" data-web-step-list="true">
+    <div id="@ListId" class="mt-4 flex flex-col gap-2" data-web-step-list="true">
         @if (Steps.Count == 0)
         {
             <p class="rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">Add a step from the toolbox.</p>
@@ -23,6 +23,13 @@
                          data-step-id="@step.Id"
                          @onclick="() => OnSelectStep.InvokeAsync(step)">
                     <div class="flex min-w-0 items-start gap-3">
+                        <button class="web-automation-step-handle"
+                                type="button"
+                                title="Drag step"
+                                aria-label="Drag step"
+                                @onclick:stopPropagation>
+                            <span aria-hidden="true" class="web-automation-step-grip"></span>
+                        </button>
                         <span class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-xs font-bold text-white">@step.OrderIndex</span>
                         <div class="min-w-0 flex-1">
                             <h3 class="truncate text-sm font-semibold text-white">@DescriptionOrType(step)</h3>
@@ -76,8 +83,8 @@
     private string StepClass(WebAutomationStepDto step)
     {
         return step.Id == SelectedStepId
-            ? "web-automation-step-card cursor-pointer rounded-xl border border-sky-300/30 bg-sky-300/10 px-3 py-3"
-            : "web-automation-step-card cursor-pointer rounded-xl border border-white/10 bg-black/20 px-3 py-3 transition hover:bg-white/8";
+            ? "web-automation-step-card rounded-xl border border-sky-300/30 bg-sky-300/10 px-3 py-3"
+            : "web-automation-step-card rounded-xl border border-white/10 bg-black/20 px-3 py-3 transition hover:bg-white/8";
     }
 
     private static string StepMeta(WebAutomationStepDto step)

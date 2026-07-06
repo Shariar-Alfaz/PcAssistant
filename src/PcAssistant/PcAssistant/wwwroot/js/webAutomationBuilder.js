@@ -94,17 +94,30 @@ window.pcAssistantWebAutomation = {
 
         if (window.Sortable) {
             const sortable = window.Sortable.create(element, {
-                animation: 220,
+                animation: 180,
                 easing: "cubic-bezier(0.22, 1, 0.36, 1)",
                 dataIdAttr: "data-step-id",
                 draggable: "[data-step-id]",
+                direction: "vertical",
+                emptyInsertThreshold: 24,
+                fallbackTolerance: 4,
+                filter: "button:not(.web-automation-step-handle), input, select, textarea, a",
+                handle: ".web-automation-step-handle",
+                preventOnFilter: true,
                 ghostClass: "sortable-ghost",
                 chosenClass: "sortable-chosen",
                 dragClass: "sortable-drag",
-                forceFallback: true,
+                fallbackClass: "sortable-fallback",
                 fallbackOnBody: true,
+                forceFallback: true,
+                swapThreshold: 0.65,
                 onStart: (event) => this.animateDragStart(event.item),
-                onEnd: () => this.notifyStepOrder(element, element.__pcAssistantDotNetRef || dotNetRef)
+                onClone: (event) => this.prepareDragClone(event.clone),
+                onEnd: (event) => {
+                    this.cleanupDragState(element, event.item);
+                    return this.notifyStepOrder(element, element.__pcAssistantDotNetRef || dotNetRef);
+                },
+                onCancel: (event) => this.cleanupDragState(element, event.item)
             });
             element.__pcAssistantSortable = sortable;
             element.__pcAssistantDotNetRef = dotNetRef;
@@ -174,6 +187,112 @@ window.pcAssistantWebAutomation = {
         delete element.__pcAssistantDotNetRef;
     },
 
+    bindUploadDropZone(elementId, dotNetRef) {
+        const element = document.getElementById(elementId);
+        if (!element) {
+            return;
+        }
+
+        if (element.__pcAssistantUploadDrop) {
+            element.__pcAssistantUploadDrop.dotNetRef = dotNetRef;
+            return;
+        }
+
+        const setActive = (active) => {
+            element.classList.toggle("web-upload-drop-active", active);
+        };
+        const prevent = (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+        };
+        const dragEnter = (event) => {
+            prevent(event);
+            setActive(true);
+        };
+        const dragOver = (event) => {
+            prevent(event);
+            event.dataTransfer.dropEffect = "copy";
+            setActive(true);
+        };
+        const dragLeave = (event) => {
+            prevent(event);
+            if (!element.contains(event.relatedTarget)) {
+                setActive(false);
+            }
+        };
+        const drop = async (event) => {
+            prevent(event);
+            setActive(false);
+            const files = Array.from(event.dataTransfer?.files || []);
+            if (files.length === 0) {
+                return;
+            }
+
+            const payload = await Promise.all(files.map((file) => this.readDroppedUploadFile(file)));
+            const state = element.__pcAssistantUploadDrop;
+            await state?.dotNetRef?.invokeMethodAsync("ReceiveDroppedUploadFilesAsync", payload);
+        };
+
+        element.addEventListener("dragenter", dragEnter);
+        element.addEventListener("dragover", dragOver);
+        element.addEventListener("dragleave", dragLeave);
+        element.addEventListener("drop", drop);
+        element.__pcAssistantUploadDrop = { dotNetRef, dragEnter, dragOver, dragLeave, drop };
+    },
+
+    unbindUploadDropZone(elementId) {
+        const element = document.getElementById(elementId);
+        const state = element?.__pcAssistantUploadDrop;
+        if (!element || !state) {
+            return;
+        }
+
+        element.removeEventListener("dragenter", state.dragEnter);
+        element.removeEventListener("dragover", state.dragOver);
+        element.removeEventListener("dragleave", state.dragLeave);
+        element.removeEventListener("drop", state.drop);
+        delete element.__pcAssistantUploadDrop;
+    },
+
+    readDroppedUploadFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(reader.error || new Error("Could not read dropped file."));
+            reader.onload = () => {
+                const result = String(reader.result || "");
+                const base64 = result.includes(",") ? result.substring(result.indexOf(",") + 1) : result;
+                resolve({ name: file.name || "upload.bin", base64 });
+            };
+            reader.readAsDataURL(file);
+        });
+    },
+
+    animateUploadRail(elementId, fileCount) {
+        const rail = document.getElementById(elementId);
+        const fill = rail?.querySelector(".web-upload-file-rail-fill");
+        if (!window.gsap || !rail || !fill) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            if (!rail.isConnected || !fill.isConnected) {
+                return;
+            }
+
+            window.gsap.killTweensOf([rail, fill]);
+            window.gsap.set(fill, { scaleX: 0, transformOrigin: "left center" });
+            window.gsap.timeline({ defaults: { overwrite: true } })
+                .fromTo(rail, { opacity: 0.68 }, { opacity: 1, duration: 0.16, ease: "power2.out" })
+                .to(fill, { scaleX: 1, duration: 0.42, ease: "power3.out" }, 0)
+                .fromTo(
+                    fill,
+                    { boxShadow: "0 0 0 rgba(52, 211, 153, 0)" },
+                    { boxShadow: "0 0 18px rgba(52, 211, 153, 0.34)", duration: 0.24, ease: "sine.out" },
+                    0.06)
+                .to(fill, { boxShadow: "0 0 0 rgba(52, 211, 153, 0)", duration: 0.38, ease: "sine.inOut" });
+        });
+    },
+
     notifyStepOrder(element, dotNetRef) {
         const ids = element.__pcAssistantSortable
             ? element.__pcAssistantSortable.toArray()
@@ -192,7 +311,38 @@ window.pcAssistantWebAutomation = {
             return;
         }
 
-        window.gsap.fromTo(item, { scale: 1 }, { scale: 1.02, duration: 0.18, ease: "power2.out" });
+        const list = item.closest("[data-web-step-list]");
+        list?.classList.add("web-automation-step-list-sorting");
+        window.gsap.killTweensOf(item);
+        window.gsap.fromTo(item, { scale: 1 }, { scale: 1.012, duration: 0.14, ease: "power2.out" });
+    },
+
+    prepareDragClone(clone) {
+        if (!clone) {
+            return;
+        }
+
+        clone.classList.remove("sortable-ghost");
+        clone.classList.add("sortable-fallback", "sortable-drag");
+        clone.style.pointerEvents = "none";
+        clone.style.transition = "none";
+        clone.style.zIndex = "100000";
+    },
+
+    cleanupDragState(element, item) {
+        element?.classList.remove("web-automation-step-list-sorting");
+        if (!item) {
+            return;
+        }
+
+        item.classList.remove("sortable-chosen", "sortable-ghost", "sortable-drag", "sortable-fallback");
+        if (window.gsap) {
+            window.gsap.killTweensOf(item);
+            window.gsap.set(item, { clearProps: "transform,opacity,boxShadow,borderColor" });
+        } else {
+            item.style.transform = "";
+            item.style.opacity = "";
+        }
     },
 
     animateStepCards(element) {
@@ -354,6 +504,7 @@ window.pcAssistantWebAutomation = {
     },
 
     createInsertionPlaceholder(list) {
+        list.querySelectorAll(".sortable-ghost, .sortable-drag, .sortable-fallback").forEach((item) => item.remove());
         list.querySelectorAll(".web-automation-step-placeholder").forEach((item) => item.remove());
         const placeholder = document.createElement("div");
         placeholder.className = "web-automation-step-placeholder";
@@ -406,6 +557,16 @@ window.pcAssistantWebAutomation = {
             "Click an input, textarea, select, or editable field in the preview. The real page click is blocked during targeting.",
             "Input targeting is not available for this preview. Open headed browser mode and manually enter an input selector.",
             (target) => this.resolveInputTarget(target));
+    },
+
+    captureUploadTarget(frameId, dotNetRef) {
+        return this.capturePreviewElement(
+            frameId,
+            dotNetRef,
+            "NotifyUploadTargetCaptured",
+            "Click the file input, upload label, or upload area in the preview. The real page click is blocked during targeting.",
+            "Upload targeting is not available for this preview. Open headed browser mode and manually enter a file input selector.",
+            (target) => this.resolveUploadTarget(target));
     },
 
     capturePreviewElement(frameId, dotNetRef, callbackName, successMessage, failureMessage, targetResolver) {
@@ -525,6 +686,55 @@ window.pcAssistantWebAutomation = {
         return null;
     },
 
+    resolveUploadTarget(target) {
+        if (!target || target.nodeType !== Node.ELEMENT_NODE) {
+            return null;
+        }
+
+        const fileInputSelector = "input[type='file']";
+        const direct = target.closest(fileInputSelector);
+        if (direct) {
+            return direct;
+        }
+
+        const label = target.closest("label");
+        if (label) {
+            if (label.control?.matches?.(fileInputSelector)) {
+                return label.control;
+            }
+
+            const nested = label.querySelector(fileInputSelector);
+            if (nested) {
+                return nested;
+            }
+
+            const forId = label.getAttribute("for");
+            if (forId) {
+                const controlled = label.ownerDocument.getElementById(forId);
+                if (controlled?.matches?.(fileInputSelector)) {
+                    return controlled;
+                }
+            }
+        }
+
+        const associated = this.findAssociatedFileInput(target);
+        if (associated) {
+            return associated;
+        }
+
+        let current = target;
+        for (let depth = 0; current && depth < 5; depth += 1) {
+            const nested = current.querySelector?.(fileInputSelector);
+            if (nested) {
+                return nested;
+            }
+
+            current = current.parentElement;
+        }
+
+        return null;
+    },
+
     inputTargetSelector() {
         return [
             "input",
@@ -560,6 +770,30 @@ window.pcAssistantWebAutomation = {
         }
 
         return null;
+    },
+
+    findAssociatedFileInput(target) {
+        const doc = target.ownerDocument;
+        const associationAttributes = ["aria-controls", "aria-owns", "for"];
+        for (const attribute of associationAttributes) {
+            const id = target.closest(`[${attribute}]`)?.getAttribute(attribute);
+            if (!id) {
+                continue;
+            }
+
+            const candidate = doc.getElementById(id);
+            if (candidate?.matches?.("input[type='file']")) {
+                return candidate;
+            }
+
+            const nested = candidate?.querySelector?.("input[type='file']");
+            if (nested) {
+                return nested;
+            }
+        }
+
+        const uploadHint = target.closest("[data-upload], [data-file-upload], [class*='upload'], [id*='upload']");
+        return uploadHint?.querySelector?.("input[type='file']") || null;
     },
 
     resolveClickTarget(target) {
