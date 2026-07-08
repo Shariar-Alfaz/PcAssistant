@@ -42,6 +42,14 @@ public sealed class PcAssistantPersistenceModule(string databasePath) : Module
             .As<IScheduledTaskRepository>()
             .InstancePerLifetimeScope();
 
+        builder.RegisterType<EfWebAutomationRepository>()
+            .As<IWebAutomationRepository>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<EfWebAutomationRunRepository>()
+            .As<IWebAutomationRunRepository>()
+            .InstancePerLifetimeScope();
+
         builder.RegisterType<CommandHistoryUnitOfWork>()
             .AsSelf()
             .InstancePerLifetimeScope();
@@ -50,12 +58,24 @@ public sealed class PcAssistantPersistenceModule(string databasePath) : Module
             .As<ICommandHistoryUnitOfWorkFactory>()
             .InstancePerLifetimeScope();
 
+        builder.RegisterType<WebAutomationUnitOfWork>()
+            .AsSelf()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<WebAutomationUnitOfWorkFactory>()
+            .As<IWebAutomationUnitOfWorkFactory>()
+            .InstancePerLifetimeScope();
+
         builder.RegisterType<CommandHistoryService>()
             .As<ICommandHistoryService>()
             .InstancePerLifetimeScope();
 
         builder.RegisterType<ScheduledTaskService>()
             .As<IScheduledTaskService>()
+            .InstancePerLifetimeScope();
+
+        builder.RegisterType<WebAutomationProjectService>()
+            .As<IWebAutomationProjectService>()
             .InstancePerLifetimeScope();
 
         builder.RegisterType<PcAssistantDatabaseInitializer>()

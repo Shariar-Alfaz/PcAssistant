@@ -15,9 +15,35 @@ namespace PcAssistant.Persistence.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
 
-            modelBuilder.Entity("PcAssistant.Domain.ChatSession", b =>
+            modelBuilder.Entity("PcAssistant.Domain.Entity.BrowserProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserDataDirectory")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("browser_profiles", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.ChatSession", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
@@ -40,7 +66,7 @@ namespace PcAssistant.Persistence.Migrations
                     b.ToTable("chat_sessions", (string)null);
                 });
 
-            modelBuilder.Entity("PcAssistant.Domain.CommandLogEntry", b =>
+            modelBuilder.Entity("PcAssistant.Domain.Entity.CommandLogEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
@@ -114,15 +140,9 @@ namespace PcAssistant.Persistence.Migrations
                     b.ToTable("command_logs", (string)null);
                 });
 
-            modelBuilder.Entity("PcAssistant.Domain.ScheduledTask", b =>
+            modelBuilder.Entity("PcAssistant.Domain.Entity.ScheduledTask", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("ChatSessionId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("CommandLogId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("AppDisplayName")
@@ -131,6 +151,12 @@ namespace PcAssistant.Persistence.Migrations
 
                     b.Property<string>("AppPath")
                         .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("ChatSessionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("CommandLogId")
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("CompletedAtUtc")
@@ -192,18 +218,431 @@ namespace PcAssistant.Persistence.Migrations
                     b.ToTable("scheduled_tasks", (string)null);
                 });
 
-            modelBuilder.Entity("PcAssistant.Domain.CommandLogEntry", b =>
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationFlow", b =>
                 {
-                    b.HasOne("PcAssistant.Domain.ChatSession", null)
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BrowserChannel")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DefaultTimeoutMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Headless")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("UsePersistentSession")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("web_automation_flows", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationProject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("web_automation_projects", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BrowserChannel")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FlowId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Headless")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FlowId");
+
+                    b.ToTable("web_automation_runs", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationRunStepLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtractedValue")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ScreenshotPath")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("StepId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RunId");
+
+                    b.HasIndex("StepId");
+
+                    b.ToTable("web_automation_run_step_logs", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DelayAfterMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FlowId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsOptional")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Selector")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SelectorType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StepType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("TakeScreenshotAfterStep")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TimeoutMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FlowId", "OrderIndex")
+                        .IsUnique();
+
+                    b.ToTable("web_automation_steps", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationVariable", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("FlowId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsSecret")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FlowId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("web_automation_variables", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebSelectorSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccessibleName")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CssSelector")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("Height")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("HtmlSnippet")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InnerText")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ScreenshotPath")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("StepId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("Width")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("X")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("XPath")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("Y")
+                        .HasColumnType("REAL");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StepId")
+                        .IsUnique();
+
+                    b.ToTable("web_selector_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.CommandLogEntry", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.Entity.ChatSession", null)
                         .WithMany("CommandLogs")
                         .HasForeignKey("ChatSessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("PcAssistant.Domain.ChatSession", b =>
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationFlow", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.Entity.WebAutomationProject", null)
+                        .WithMany("Flows")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationRun", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.Entity.WebAutomationFlow", null)
+                        .WithMany("Runs")
+                        .HasForeignKey("FlowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationRunStepLog", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.Entity.WebAutomationRun", null)
+                        .WithMany("StepLogs")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PcAssistant.Domain.Entity.WebAutomationStep", null)
+                        .WithMany("RunStepLogs")
+                        .HasForeignKey("StepId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationStep", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.Entity.WebAutomationFlow", null)
+                        .WithMany("Steps")
+                        .HasForeignKey("FlowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationVariable", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.Entity.WebAutomationFlow", null)
+                        .WithMany("Variables")
+                        .HasForeignKey("FlowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebSelectorSnapshot", b =>
+                {
+                    b.HasOne("PcAssistant.Domain.Entity.WebAutomationStep", null)
+                        .WithOne("SelectorSnapshot")
+                        .HasForeignKey("PcAssistant.Domain.Entity.WebSelectorSnapshot", "StepId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.ChatSession", b =>
                 {
                     b.Navigation("CommandLogs");
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationFlow", b =>
+                {
+                    b.Navigation("Runs");
+
+                    b.Navigation("Steps");
+
+                    b.Navigation("Variables");
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationProject", b =>
+                {
+                    b.Navigation("Flows");
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationRun", b =>
+                {
+                    b.Navigation("StepLogs");
+                });
+
+            modelBuilder.Entity("PcAssistant.Domain.Entity.WebAutomationStep", b =>
+                {
+                    b.Navigation("RunStepLogs");
+
+                    b.Navigation("SelectorSnapshot");
                 });
 #pragma warning restore 612, 618
         }

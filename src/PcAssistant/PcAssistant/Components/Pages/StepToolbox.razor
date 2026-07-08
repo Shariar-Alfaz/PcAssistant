@@ -1,0 +1,99 @@
+@using PcAssistant.Domain.Enums
+@using Microsoft.AspNetCore.Components
+
+<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Toolbox</p>
+    <h2 class="mt-1 text-base font-semibold text-white">Steps</h2>
+    <div class="mt-4 grid gap-2">
+        @foreach (var template in Templates)
+        {
+            <RichTooltip Title="@template.Label"
+                         Description="@template.Description"
+                         HowToUse="@template.HowToUse"
+                         Position="responsive-right"
+                         WrapperCssClass="w-full">
+                <button class="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-3 text-left text-sm font-semibold text-[#d9e2f1] transition hover:border-sky-300/30 hover:bg-sky-300/10"
+                        type="button"
+                        data-web-tool-type="@template.Type"
+                        data-web-tool-label="@template.Label"
+                        draggable="true"
+                        @onclick="() => OnAddStep.InvokeAsync(template.Type)">
+                    <span class="flex min-w-0 items-center gap-3">
+                        <span class="@IconClass(template.Type)" aria-hidden="true">@StepIcon(template.Type)</span>
+                        <span class="truncate">@template.Label</span>
+                    </span>
+                    <span class="flex size-7 shrink-0 items-center justify-center rounded-lg border border-sky-300/20 bg-sky-300/10 text-sky-100" aria-hidden="true">
+                        @AddIcon()
+                    </span>
+                </button>
+            </RichTooltip>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public EventCallback<WebAutomationStepType> OnAddStep { get; set; }
+
+    private sealed record ToolTemplate(WebAutomationStepType Type, string Label, string Description, string HowToUse);
+
+    private static readonly ToolTemplate[] Templates =
+    [
+        new(WebAutomationStepType.GotoUrl, "Open URL", "Navigates the browser to a page before later steps run.", "Add it near the start of a flow, then enter the target URL in the step editor."),
+        new(WebAutomationStepType.Click, "Click", "Clicks a button, link, menu item, or any selectable page element.", "Add the step, use Target click in the preview, then click the page element to capture its selector."),
+        new(WebAutomationStepType.Fill, "Fill input", "Sets the value of an input, textarea, select-like field, or editable control.", "Add the step, use Target input to capture the field, then enter the value to place there."),
+        new(WebAutomationStepType.Type, "Type text", "Sends typed text into the currently focused page element.", "Use after a click or fill target when the site reacts better to real typing than direct value setting."),
+        new(WebAutomationStepType.Press, "Press key", "Sends a keyboard key such as Enter, Tab, Escape, or a shortcut.", "Place it after the step that focuses the page area, then set the key name in the editor."),
+        new(WebAutomationStepType.WaitForSelector, "Wait for element", "Pauses the flow until a specific element appears on the page.", "Capture or enter the selector for the element that proves the page is ready."),
+        new(WebAutomationStepType.Wait, "Wait delay", "Adds a fixed delay between steps for animations, redirects, or slow UI updates.", "Set the delay in milliseconds and keep it as short as the site reliably allows."),
+        new(WebAutomationStepType.SelectOption, "Select option", "Chooses an option from a dropdown or select control.", "Capture the select element, then enter the option value or visible option text to select."),
+        new(WebAutomationStepType.UploadFile, "Upload file", "Sets a local file on a page file-input control.", "Capture the file input selector, then enter the full local file path to upload during the run."),
+        new(WebAutomationStepType.Screenshot, "Screenshot", "Captures the current page state and saves it with the run log.", "Add it where you need visual evidence; after a run, open the Run logs Preview button."),
+        new(WebAutomationStepType.ExtractText, "Extract text", "Reads text from a page element and stores it on the step log.", "Capture the element whose text you need; the extracted value appears in run history."),
+        new(WebAutomationStepType.AssertText, "Assert text", "Checks that an element contains expected text and fails the run when it does not.", "Capture the element, enter the expected text, and use it after navigation or data entry."),
+        new(WebAutomationStepType.AssertVisible, "Assert visible", "Checks that an element is visible before the flow continues.", "Capture the element that must be on screen, then run the flow to verify the page state."),
+    ];
+
+    private static string IconClass(WebAutomationStepType stepType)
+    {
+        var colorClass = stepType switch
+        {
+            WebAutomationStepType.GotoUrl => "bg-sky-300/15 text-sky-100 border-sky-300/20",
+            WebAutomationStepType.Click or WebAutomationStepType.Hover => "bg-indigo-300/20 text-indigo-100 border-indigo-300/25",
+            WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.Press or WebAutomationStepType.SelectOption or WebAutomationStepType.UploadFile => "bg-emerald-300/20 text-emerald-100 border-emerald-300/25",
+            WebAutomationStepType.WaitForSelector or WebAutomationStepType.Wait => "bg-amber-300/15 text-amber-100 border-amber-300/25",
+            WebAutomationStepType.Screenshot or WebAutomationStepType.ExtractText => "bg-cyan-300/20 text-cyan-200 border-sky-200/20",
+            WebAutomationStepType.AssertText or WebAutomationStepType.AssertVisible => "bg-rose-300/15 text-rose-200 border-rose-300/25",
+            _ => "bg-white/10 text-[#dce9ff] border-white/10",
+        };
+
+        return $"flex size-8 shrink-0 items-center justify-center rounded-lg border [&_svg]:size-4 {colorClass}";
+    }
+
+    private static MarkupString StepIcon(WebAutomationStepType stepType)
+    {
+        var body = stepType switch
+        {
+            WebAutomationStepType.GotoUrl => """<path d="M10 13a5 5 0 0 0 7.07 0l2.12-2.12a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.81 13.12a5 5 0 0 0 7.07 7.07L13 19.07"/>""",
+            WebAutomationStepType.Click => """<path d="M8 3v10l2.8-2.1L14 18l3-1.4-3.1-6.6H18L8 3Z"/>""",
+            WebAutomationStepType.Fill => """<path d="M4 7h16"/><path d="M6 12h12"/><path d="M8 17h8"/><rect x="3" y="4" width="18" height="16" rx="3"/>""",
+            WebAutomationStepType.Type => """<path d="M5 6h14"/><path d="M12 6v12"/><path d="M9 18h6"/>""",
+            WebAutomationStepType.Press => """<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h.01"/><path d="M11 10h.01"/><path d="M15 10h2"/><path d="M7 14h10"/>""",
+            WebAutomationStepType.WaitForSelector => """<path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="8"/><path d="M4 4l3 3"/><path d="M20 4l-3 3"/>""",
+            WebAutomationStepType.Wait => """<path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="8"/>""",
+            WebAutomationStepType.SelectOption => """<path d="m7 10 5 5 5-5"/><rect x="4" y="5" width="16" height="14" rx="3"/>""",
+            WebAutomationStepType.UploadFile => """<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/><path d="M6 16v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/>""",
+            WebAutomationStepType.Screenshot => """<path d="M7 7h1.5L10 5h4l1.5 2H17a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3Z"/><circle cx="12" cy="13" r="3"/>""",
+            WebAutomationStepType.ExtractText => """<path d="M5 5h14"/><path d="M7 9h10"/><path d="M7 13h6"/><path d="M7 17h4"/><path d="m15 15 2 2 3-4"/>""",
+            WebAutomationStepType.AssertText => """<path d="M5 6h14"/><path d="M7 11h6"/><path d="M7 16h4"/><path d="m14 16 2 2 4-5"/>""",
+            WebAutomationStepType.AssertVisible => """<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="m16 17 1.5 1.5 3-4"/>""",
+            _ => """<path d="M12 5v14"/><path d="M5 12h14"/>""",
+        };
+
+        return new MarkupString($"""<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{body}</svg>""");
+    }
+
+    private static MarkupString AddIcon()
+    {
+        return new MarkupString("""<svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>""");
+    }
+}

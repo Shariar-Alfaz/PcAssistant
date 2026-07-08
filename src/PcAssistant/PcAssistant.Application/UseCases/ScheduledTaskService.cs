@@ -7,7 +7,8 @@ namespace PcAssistant.Application.UseCases;
 
 public sealed class ScheduledTaskService(
     ICommandHistoryUnitOfWorkFactory unitOfWorkFactory,
-    IMessageAutomationService messageAutomationService) : IScheduledTaskService
+    IMessageAutomationService messageAutomationService,
+    IWebAutomationProjectService? webAutomationProjectService = null) : IScheduledTaskService
 {
     private static readonly TimeSpan MinimumDelay = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan MaximumDelay = TimeSpan.FromHours(24);
@@ -157,6 +158,43 @@ public sealed class ScheduledTaskService(
         }
     }
 
+    public async Task<ScheduledTaskItem> ScheduleWebAutomationAsync(
+        ScheduleWebAutomationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var repeatMode = NormalizeRepeatMode(request.RepeatMode);
+        var repeatDaysOfWeek = repeatMode == ScheduledTask.WeeklyRepeatMode
+            ? NormalizeRepeatDays(request.RepeatDaysOfWeek, request.ScheduledForLocal.DayOfWeek)
+            : 0;
+        var scheduledForUtc = repeatMode == ScheduledTask.WeeklyRepeatMode
+            ? NextWeeklyOccurrenceUtc(request.ScheduledForLocal, repeatDaysOfWeek, now)
+            : EnsureFutureUtc(request.ScheduledForLocal.ToUniversalTime(), now);
+
+        var task = ScheduledTask.QueueWebAutomation(
+            request.FlowId,
+            request.Title,
+            request.StartUrl,
+            scheduledForUtc,
+            now,
+            repeatMode,
+            repeatDaysOfWeek);
+
+        await using var unitOfWork = unitOfWorkFactory.Create();
+        try
+        {
+            await unitOfWork.ScheduledTasks.AddAsync(task, cancellationToken);
+            await ReorderQueueAsync(unitOfWork, task, cancellationToken);
+            await unitOfWork.CommitAsync(cancellationToken);
+            return ToScheduledTaskItem(task);
+        }
+        catch
+        {
+            await unitOfWork.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     public async Task<IReadOnlyList<ScheduledTaskItem>> CompleteDueTasksAsync(CancellationToken cancellationToken = default)
     {
         await DueTaskCompletionGate.WaitAsync(cancellationToken);
@@ -181,6 +219,12 @@ public sealed class ScheduledTaskService(
                     if (task.TaskType == ScheduledTask.MessageAutomationTaskType)
                     {
                         await CompleteMessageAutomationTaskAsync(task, now, cancellationToken);
+                        continue;
+                    }
+
+                    if (task.TaskType == ScheduledTask.WebAutomationTaskType)
+                    {
+                        await CompleteWebAutomationTaskAsync(task, now, cancellationToken);
                         continue;
                     }
 
@@ -327,6 +371,43 @@ public sealed class ScheduledTaskService(
         {
             task.MarkFailed($"Message automation failed: {ex.Message}", now);
         }
+    }
+
+    private async Task CompleteWebAutomationTaskAsync(
+        ScheduledTask task,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(task.MessageText, out var flowId))
+        {
+            task.MarkFailed("Web automation flow reference is invalid.", now);
+            return;
+        }
+
+        if (webAutomationProjectService is null)
+        {
+            task.MarkFailed("Web automation runner is not available.", now);
+            return;
+        }
+
+        var result = await webAutomationProjectService.RunFlowAsync(
+            new RunWebAutomationFlowRequest(flowId, RunHeaded: false, RequireConfirmation: true),
+            cancellationToken);
+
+        if (!result.Succeeded)
+        {
+            task.MarkFailed(result.ErrorMessage ?? "Web automation failed.", now);
+            return;
+        }
+
+        if (task.RepeatMode == ScheduledTask.WeeklyRepeatMode && task.RepeatDaysOfWeek > 0)
+        {
+            var next = NextWeeklyOccurrenceUtc(task.ScheduledForUtc.ToLocalTime(), task.RepeatDaysOfWeek, now);
+            task.Reschedule(next, $"Web automation ran. Next run {next.ToLocalTime():MMM d, yyyy h:mm tt}.");
+            return;
+        }
+
+        task.MarkCompleted($"Web automation run {result.Value?.Status}.", now);
     }
 
     private static IReadOnlyList<string> NormalizeRecipients(IReadOnlyList<string> recipients)

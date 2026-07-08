@@ -1,0 +1,467 @@
+@inject IJSRuntime JsRuntime
+@implements IDisposable
+@using PcAssistant.Application.Abstractions.Services
+@using PcAssistant.Application.Models
+
+<section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Preview</p>
+            <h2 class="mt-1 text-base font-semibold text-white">Live website</h2>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <RichTooltip Title="Refresh preview"
+                         Description="Reloads the inline preview from the current start URL."
+                         HowToUse="Use this after changing the URL, logging in elsewhere, or when the page preview looks stale.">
+                <button class="@PreviewActionButtonClass("neutral")"
+                        type="button"
+                        aria-label="Refresh preview"
+                        @onclick="RefreshPreviewAsync">
+                    @PreviewActionIcon("refresh")
+                    <span>Refresh</span>
+                </button>
+            </RichTooltip>
+            <RichTooltip Title="Open browser"
+                         Description="Opens a headed browser session for pages that need real browser interaction."
+                         HowToUse="Use this when inline preview cannot load the page or when you need to inspect the live site manually.">
+                <button class="@PreviewActionButtonClass("sky")"
+                        type="button"
+                        aria-label="Open browser"
+                        @onclick="OpenHeadedPreviewAsync">
+                    @PreviewActionIcon("browser")
+                    <span>Browser</span>
+                </button>
+            </RichTooltip>
+            <RichTooltip Title="Capture selector"
+                         Description="Turns your next click in the inline preview into a CSS selector."
+                         HowToUse="Click the tool, then click the exact preview element you want the selected step to target.">
+                <button class="@PreviewActionButtonClass("emerald")"
+                        type="button"
+                        aria-label="Capture selector"
+                        @onclick="CaptureSelectorAsync">
+                    @PreviewActionIcon("selector")
+                    <span>Selector</span>
+                </button>
+            </RichTooltip>
+            <RichTooltip Title="Target click"
+                         Description="Captures the element that a click step should press during automation."
+                         HowToUse="Select or create a Click step, choose this tool, then click the target button or link in the preview.">
+                <button class="@PreviewActionButtonClass("amber")"
+                        type="button"
+                        aria-label="Target click"
+                        @onclick="TargetClickAsync">
+                    @PreviewActionIcon("click")
+                    <span>Click</span>
+                </button>
+            </RichTooltip>
+            <RichTooltip Title="Target input"
+                         Description="Captures the field that a fill step should write into."
+                         HowToUse="Select or create a Fill input step, choose this tool, then click the input field in the preview.">
+                <button class="@PreviewActionButtonClass("indigo")"
+                        type="button"
+                        aria-label="Target input"
+                        @onclick="TargetInputAsync">
+                    @PreviewActionIcon("input")
+                    <span>Input</span>
+                </button>
+            </RichTooltip>
+            <RichTooltip Title="Target upload"
+                         Description="Captures the file input that an upload step should use."
+                         HowToUse="Select or create an Upload file step, choose this tool, then click the file input, upload label, or upload area in the preview.">
+                <button class="@PreviewActionButtonClass("emerald")"
+                        type="button"
+                        aria-label="Target upload"
+                        @onclick="TargetUploadAsync">
+                    @PreviewActionIcon("upload")
+                    <span>Upload</span>
+                </button>
+            </RichTooltip>
+            <RichTooltip Title="Take screenshot"
+                         Description="Captures the current preview page as an image."
+                         HowToUse="Use this to verify what the automation sees; saved run screenshots can be opened from Run logs.">
+                <button class="@PreviewActionButtonClass("neutral")"
+                        type="button"
+                        aria-label="Take screenshot"
+                        @onclick="TakeScreenshotAsync">
+                    @PreviewActionIcon("camera")
+                    <span>Screenshot</span>
+                </button>
+            </RichTooltip>
+        </div>
+    </div>
+
+    <div id="@PreviewRootId" class="relative mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
+        @if (_preview?.CanUseInlinePreview == true)
+        {
+            @if (!string.IsNullOrWhiteSpace(_preview.InlinePreviewHtml))
+            {
+                <iframe id="@FrameId"
+                        class="h-[26rem] w-full bg-white"
+                        srcdoc="@_preview.InlinePreviewHtml"
+                        sandbox="allow-forms allow-same-origin allow-popups"
+                        @onload="PreviewFrameLoadedAsync">
+                </iframe>
+            }
+            else
+            {
+                <iframe id="@FrameId"
+                        class="h-[26rem] w-full bg-white"
+                        src="@_preview.InlinePreviewUrl"
+                        sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+                        @onload="PreviewFrameLoadedAsync">
+                </iframe>
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(_preview?.ScreenshotPath))
+        {
+            <img class="max-h-[26rem] w-full object-contain" src="@ScreenshotUri(_preview.ScreenshotPath)" alt="" />
+        }
+        else
+        {
+            <div class="flex h-[26rem] items-center justify-center px-6 text-center text-sm text-[#aab6c9]">
+                @_preview?.Message
+            </div>
+        }
+
+        @if (IsPreviewBusy)
+        {
+            <div class="absolute inset-0 z-10 flex h-full min-h-[26rem] items-center justify-center bg-[#091323]/88 px-6 text-center backdrop-blur-sm">
+                <div class="flex w-full max-w-xs flex-col items-center gap-3">
+                    <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                        <div class="h-full w-1/2 animate-[preview-load_1.1s_ease-in-out_infinite] rounded-full bg-cyan-300"></div>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-white">@PreviewLoadingTitle</p>
+                        <p class="mt-1 text-xs text-[#9fb0c8]">@PreviewLoadingMessage</p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public string StartUrl { get; set; } = string.Empty;
+    [Parameter] public IWebPreviewService? Preview { get; set; }
+    [Parameter] public WebAutomationStepDto? SelectedStep { get; set; }
+    [Parameter] public EventCallback<string> OnMessage { get; set; }
+    [Parameter] public EventCallback<string> OnSelectorCaptured { get; set; }
+    [Parameter] public EventCallback<string> OnClickTargetCaptured { get; set; }
+    [Parameter] public EventCallback<string> OnInputTargetCaptured { get; set; }
+    [Parameter] public EventCallback<string> OnUploadTargetCaptured { get; set; }
+
+    private readonly string FrameId = $"web-preview-frame-{Guid.NewGuid():N}";
+    private readonly string PreviewRootId = $"web-preview-root-{Guid.NewGuid():N}";
+    private readonly CancellationTokenSource _componentCancellation = new();
+    private WebPreviewDto? _preview;
+    private string? _loadedUrl;
+    private DotNetObjectReference<WebPreviewPanel>? _reference;
+    private CancellationTokenSource? _previewCancellation;
+    private int _previewRequestId;
+    private bool _disposed;
+    private bool _isPreviewLoading;
+    private bool _isFrameLoading;
+
+    private bool IsPreviewBusy => _isPreviewLoading || _isFrameLoading;
+
+    private string PreviewLoadingTitle => _isPreviewLoading ? "Preparing preview" : "Loading website";
+
+    private string PreviewLoadingMessage => _isPreviewLoading
+        ? "Capturing the latest page view."
+        : "Waiting for the live preview to finish.";
+
+    private static string PreviewActionButtonClass(string tone)
+    {
+        var colorClass = tone switch
+        {
+            "sky" => "border-sky-300/20 bg-sky-300/10 text-sky-100 hover:bg-sky-300/15",
+            "emerald" => "border-emerald-300/20 bg-emerald-300/10 text-emerald-100 hover:bg-emerald-300/15",
+            "amber" => "border-amber-300/25 bg-amber-300/15 text-amber-100 hover:bg-amber-300/20",
+            "indigo" => "border-indigo-300/25 bg-indigo-300/15 text-indigo-100 hover:bg-indigo-300/20",
+            _ => "border-white/15 bg-white/5 text-white hover:bg-white/10",
+        };
+
+        return $"inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition [&_svg]:size-4 {colorClass}";
+    }
+
+    private static MarkupString PreviewActionIcon(string icon)
+    {
+        var body = icon switch
+        {
+            "refresh" => """<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/>""",
+            "browser" => """<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 7h.01"/><path d="M11 7h.01"/>""",
+            "selector" => """<path d="M4 4l7 16 2-7 7-2L4 4Z"/><path d="m13 13 5 5"/>""",
+            "click" => """<path d="M8 13V5.5a2 2 0 0 1 4 0V12"/><path d="M12 11.5V9a2 2 0 0 1 4 0v3"/><path d="M16 12v-1a2 2 0 0 1 4 0v2.5a6.5 6.5 0 0 1-6.5 6.5H12a6 6 0 0 1-5.2-3L4 12.5a1.7 1.7 0 0 1 2.7-2L8 12"/>""",
+            "input" => """<path d="M4 7h16"/><path d="M4 17h16"/><path d="M9 12h6"/><path d="M12 5v14"/>""",
+            "upload" => """<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/><path d="M6 16v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/>""",
+            "camera" => """<path d="M14.5 5 13 3H9L7.5 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4.5Z"/><circle cx="12" cy="12" r="3.5"/>""",
+            _ => """<circle cx="12" cy="12" r="8"/>""",
+        };
+
+        return new MarkupString($"""<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{body}</svg>""");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Preview is null || string.Equals(_loadedUrl, StartUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _loadedUrl = StartUrl;
+        await RefreshPreviewAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        await HighlightSelectedStepAsync();
+    }
+
+    private async Task RefreshPreviewAsync()
+    {
+        if (Preview is null)
+        {
+            return;
+        }
+
+        var (requestId, cancellationToken) = BeginPreviewRequest();
+
+        try
+        {
+            var preview = await Preview.CreatePreviewAsync(StartUrl, cancellationToken);
+            if (!IsCurrentPreviewRequest(requestId))
+            {
+                return;
+            }
+
+            _preview = preview;
+            _isFrameLoading = HasInlinePreviewFrame(_preview);
+            await OnMessage.InvokeAsync(_preview.Message ?? "Preview refreshed.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            CompletePreviewRequest(requestId);
+        }
+    }
+
+    private async Task TakeScreenshotAsync()
+    {
+        if (Preview is null)
+        {
+            return;
+        }
+
+        var (requestId, cancellationToken) = BeginPreviewRequest();
+
+        try
+        {
+            var preview = await Preview.CaptureScreenshotPreviewAsync(StartUrl, cancellationToken);
+            if (!IsCurrentPreviewRequest(requestId))
+            {
+                return;
+            }
+
+            _preview = preview;
+            await OnMessage.InvokeAsync(_preview.Message ?? "Screenshot preview updated.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            CompletePreviewRequest(requestId);
+        }
+    }
+
+    private async Task OpenHeadedPreviewAsync()
+    {
+        if (Preview is null)
+        {
+            return;
+        }
+
+        var cancellationToken = CurrentPreviewCancellationToken();
+
+        try
+        {
+            await Preview.OpenHeadedPreviewAsync(StartUrl, cancellationToken);
+            await OnMessage.InvokeAsync("Headed browser preview opened.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            await OnMessage.InvokeAsync(ex.Message);
+        }
+    }
+
+    private async Task CaptureSelectorAsync()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureSelector",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
+        await OnMessage.InvokeAsync(result);
+    }
+
+    private async Task TargetClickAsync()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureClickTarget",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
+        await OnMessage.InvokeAsync(result);
+    }
+
+    private async Task TargetInputAsync()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureInputTarget",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
+        await OnMessage.InvokeAsync(result);
+    }
+
+    private async Task TargetUploadAsync()
+    {
+        _reference ??= DotNetObjectReference.Create(this);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureUploadTarget",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
+        await OnMessage.InvokeAsync(result);
+    }
+
+    private async Task HighlightSelectedStepAsync()
+    {
+        if (_preview?.CanUseInlinePreview != true)
+        {
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantWebAutomation.highlightPreviewSelection",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            SelectedStep?.SelectorType.ToString(),
+            SelectedStep?.Selector,
+            SelectedStep?.Value);
+    }
+
+    private async Task PreviewFrameLoadedAsync()
+    {
+        _isFrameLoading = false;
+        await HighlightSelectedStepAsync();
+    }
+
+    [JSInvokable]
+    public async Task NotifySelectorCaptured(string selector)
+    {
+        await OnSelectorCaptured.InvokeAsync(selector);
+        await OnMessage.InvokeAsync($"Captured selector: {selector}");
+    }
+
+    [JSInvokable]
+    public async Task NotifyClickTargetCaptured(string selector)
+    {
+        await OnClickTargetCaptured.InvokeAsync(selector);
+        await OnMessage.InvokeAsync($"Click target captured: {selector}");
+    }
+
+    [JSInvokable]
+    public async Task NotifyInputTargetCaptured(string selector)
+    {
+        await OnInputTargetCaptured.InvokeAsync(selector);
+        await OnMessage.InvokeAsync($"Input target captured: {selector}");
+    }
+
+    [JSInvokable]
+    public async Task NotifyUploadTargetCaptured(string selector)
+    {
+        await OnUploadTargetCaptured.InvokeAsync(selector);
+        await OnMessage.InvokeAsync($"Upload target captured: {selector}");
+    }
+
+    private static string ScreenshotUri(string path)
+    {
+        return new Uri(path).AbsoluteUri;
+    }
+
+    private static bool HasInlinePreviewFrame(WebPreviewDto preview)
+    {
+        return preview.CanUseInlinePreview
+            && (!string.IsNullOrWhiteSpace(preview.InlinePreviewHtml)
+                || !string.IsNullOrWhiteSpace(preview.InlinePreviewUrl));
+    }
+
+    private (int RequestId, CancellationToken CancellationToken) BeginPreviewRequest()
+    {
+        CancelPreviewRequest();
+
+        _previewCancellation = CancellationTokenSource.CreateLinkedTokenSource(_componentCancellation.Token);
+        _previewRequestId++;
+        _isPreviewLoading = true;
+        _isFrameLoading = false;
+        StateHasChanged();
+
+        return (_previewRequestId, _previewCancellation.Token);
+    }
+
+    private void CompletePreviewRequest(int requestId)
+    {
+        if (!IsCurrentPreviewRequest(requestId))
+        {
+            return;
+        }
+
+        _isPreviewLoading = false;
+    }
+
+    private bool IsCurrentPreviewRequest(int requestId)
+    {
+        return !_disposed && requestId == _previewRequestId;
+    }
+
+    private CancellationToken CurrentPreviewCancellationToken()
+    {
+        if (_disposed)
+        {
+            return new CancellationToken(true);
+        }
+
+        return _previewCancellation?.Token ?? _componentCancellation.Token;
+    }
+
+    private void CancelPreviewRequest()
+    {
+        if (_previewCancellation is null)
+        {
+            return;
+        }
+
+        _previewCancellation.Cancel();
+        _previewCancellation.Dispose();
+        _previewCancellation = null;
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _componentCancellation.Cancel();
+        CancelPreviewRequest();
+        _componentCancellation.Dispose();
+        _reference?.Dispose();
+    }
+}

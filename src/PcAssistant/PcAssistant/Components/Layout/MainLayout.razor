@@ -1,10 +1,19 @@
 @inherits LayoutComponentBase
 @inject PcAssistant.Application.Abstractions.Services.IAiApiProcessService AiApiProcess
+@inject IJSRuntime JsRuntime
 @implements IAsyncDisposable
 
 <div class="@RootClass">
+    <div class="pc-app-background" aria-hidden="true">
+        <span class="pc-bg-grid"></span>
+        <span class="pc-bg-sweep"></span>
+        <span class="pc-bg-circuit pc-bg-circuit-a"></span>
+        <span class="pc-bg-circuit pc-bg-circuit-b"></span>
+        <span class="pc-bg-signal pc-bg-signal-a"></span>
+        <span class="pc-bg-signal pc-bg-signal-b"></span>
+    </div>
     <NavMenu />
-    <main class="min-h-0 min-w-0 overflow-hidden">
+    <main class="pc-app-main min-h-0 min-w-0 overflow-hidden">
         @Body
     </main>
 </div>
@@ -26,7 +35,7 @@
 }
 
 @code {
-    private const string RootClass = "grid h-screen min-h-0 grid-cols-[auto_minmax(0,1fr)] overflow-hidden bg-[#080b16] text-slate-950";
+    private const string RootClass = "pc-app-shell grid h-screen min-h-0 grid-cols-[auto_minmax(0,1fr)] overflow-hidden bg-[#080b16] text-slate-950";
     private bool _isStartingAiApi = true;
     private bool _hasStartedAiApi;
 
@@ -38,6 +47,7 @@
         }
 
         _hasStartedAiApi = true;
+        _ = JsRuntime.InvokeVoidAsync("pcAssistantBackground.initialize");
         _ = StartAiApiAsync();
     }
 
@@ -60,6 +70,15 @@
 
     public async ValueTask DisposeAsync()
     {
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("pcAssistantBackground.destroy");
+        }
+        catch
+        {
+            // The WebView can already be gone while the layout is disposing.
+        }
+
         await AiApiProcess.StopAsync();
     }
 }

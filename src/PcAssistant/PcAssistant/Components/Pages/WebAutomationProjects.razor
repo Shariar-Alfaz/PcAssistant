@@ -1,0 +1,257 @@
+﻿@page "/automation/web"
+@inject IWebAutomationProjectService Projects
+@inject NavigationManager Navigation
+@using PcAssistant.Application.Abstractions.Services
+
+<PageTitle>Web Automation</PageTitle>
+
+<section class="pc-page-surface ui-scrollbar h-screen min-h-0 overflow-y-auto px-5 py-6 text-[#d9e2f1] sm:px-8"
+         @onclick="CloseProjectActions">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-5">
+        <header>
+            <div>
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Web automation</p>
+                <h1 class="mt-1 text-2xl font-semibold text-white">Automation projects</h1>
+            </div>
+        </header>
+
+        <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+            <div class="flex flex-wrap items-end gap-3">
+                <label class="max-w-[18rem] min-w-[12rem]" style="flex: 1 1 13rem;">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Name</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           value="@_name"
+                           @oninput="args => _name = args.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label class="max-w-[20rem] min-w-[13rem]" style="flex: 1 1 15rem;">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Description</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           value="@_description"
+                           @oninput="args => _description = args.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label class="max-w-[28rem] min-w-[16rem]" style="flex: 1.35 1 18rem;">
+                    <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Website URL</span>
+                    <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none placeholder:text-[#8995ad] focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                           placeholder="https://example.com"
+                           value="@_startUrl"
+                           @oninput="args => _startUrl = args.Value?.ToString() ?? string.Empty" />
+                </label>
+                <button class="web-automation-project-create-button min-h-11 shrink-0 rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:opacity-60"
+                        type="button"
+                        disabled="@_isSaving"
+                        @onclick="CreateProjectAsync">
+                    @(_isSaving ? "Creating..." : "Create project")
+                </button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <p class="@MessageClass">@_message</p>
+            }
+        </section>
+
+        <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Saved</p>
+                    <h2 class="mt-1 text-base font-semibold text-white">@_projects.Count projects</h2>
+                </div>
+                <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                        type="button"
+                        @onclick="LoadProjectsAsync">
+                    Refresh
+                </button>
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div class="h-28 animate-pulse rounded-xl bg-black/20"></div>
+                    <div class="h-28 animate-pulse rounded-xl bg-black/20"></div>
+                </div>
+            }
+            else if (_projects.Count == 0)
+            {
+                <p class="mt-4 rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">No web automation projects yet.</p>
+            }
+            else
+            {
+                <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    @foreach (var project in _projects)
+                    {
+                        <article class="relative rounded-xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <h3 class="truncate text-sm font-semibold text-white">@project.Name</h3>
+                                    <p class="mt-1 truncate text-xs text-[#aab6c9]">@project.StartUrl</p>
+                                    <p class="mt-2 text-xs text-[#8fa1bc]">@project.Flows.Count flow(s)</p>
+                                </div>
+                                <div class="relative shrink-0" @onclick:stopPropagation>
+                                    <button class="group flex size-9 items-center justify-center rounded-lg border border-white/15 bg-[#16263c] text-[#dce9ff] shadow-sm shadow-black/20 transition hover:border-sky-300/30 hover:bg-sky-300/10 hover:text-white"
+                                            type="button"
+                                            aria-label="Project actions"
+                                            title="Actions"
+                                            @onclick="() => ToggleProjectActions(project.Id)">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <circle cx="12" cy="5" r="1.9" fill="currentColor" />
+                                            <circle cx="12" cy="12" r="1.9" fill="currentColor" />
+                                            <circle cx="12" cy="19" r="1.9" fill="currentColor" />
+                                        </svg>
+                                    </button>
+                                    @if (_openProjectActionId == project.Id)
+                                    {
+                                        <div class="absolute right-0 z-30 mt-2 w-40 overflow-hidden rounded-xl border border-white/10 bg-[#111b2e] p-1 shadow-2xl shadow-black/40">
+                                            <button class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-sky-100 transition hover:bg-sky-300/10"
+                                                    type="button"
+                                                    @onclick="() => OpenBuilder(project.Id)">
+                                                Open builder
+                                            </button>
+                                            <button class="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-100 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                                    type="button"
+                                                    disabled="@(_deletingProjectId == project.Id)"
+                                                    @onclick="() => AskDeleteProject(project)">
+                                                @(_deletingProjectId == project.Id ? "Deleting..." : "Delete")
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+
+    @if (_pendingDeleteProject is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+            <section class="w-full max-w-md rounded-2xl border border-white/10 bg-[#101d2f] p-4 shadow-2xl shadow-black/50">
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Confirm delete</p>
+                <h2 class="mt-2 text-base font-semibold text-white">@_pendingDeleteProject.Name</h2>
+                <p class="mt-2 text-sm leading-6 text-[#aab6c9]">This project and its web automation flows, steps, and run logs will be deleted from the database.</p>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                            type="button"
+                            @onclick="CancelDeleteProject">
+                        Keep
+                    </button>
+                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled="@(_deletingProjectId == _pendingDeleteProject.Id)"
+                            @onclick="ConfirmDeleteProjectAsync">
+                        @(_deletingProjectId == _pendingDeleteProject.Id ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+</section>
+
+@code {
+    private readonly List<WebAutomationProjectDto> _projects = new();
+    private string _name = "Example flow";
+    private string _description = "Demo browser automation";
+    private string _startUrl = "https://example.com";
+    private string? _message;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private Guid? _deletingProjectId;
+    private Guid? _openProjectActionId;
+    private WebAutomationProjectDto? _pendingDeleteProject;
+
+    private string MessageClass => _message?.StartsWith("Created", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.StartsWith("Deleted", StringComparison.OrdinalIgnoreCase) == true
+        ? "mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-100"
+        : "mt-3 rounded-xl border border-rose-300/20 bg-rose-950/80 px-3 py-2 text-sm text-rose-100";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProjectsAsync();
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        _isLoading = true;
+        var projects = await Projects.GetProjectsAsync();
+        _projects.Clear();
+        _projects.AddRange(projects);
+        _isLoading = false;
+    }
+
+    private async Task CreateProjectAsync()
+    {
+        _isSaving = true;
+        _message = null;
+        var result = await Projects.CreateProjectAsync(new CreateWebAutomationProjectRequest(_name, _description, _startUrl));
+        _isSaving = false;
+        if (!result.Succeeded || result.Value is null)
+        {
+            _message = result.ErrorMessage;
+            return;
+        }
+
+        _message = "Created web automation project.";
+        await LoadProjectsAsync();
+        Navigation.NavigateTo($"/automation/web/{result.Value.Id}");
+    }
+
+    private void OpenBuilder(Guid projectId)
+    {
+        _openProjectActionId = null;
+        Navigation.NavigateTo($"/automation/web/{projectId}");
+    }
+
+    private void AskDeleteProject(WebAutomationProjectDto project)
+    {
+        _openProjectActionId = null;
+        _pendingDeleteProject = project;
+    }
+
+    private void ToggleProjectActions(Guid projectId)
+    {
+        _openProjectActionId = _openProjectActionId == projectId ? null : projectId;
+    }
+
+    private void CloseProjectActions()
+    {
+        _openProjectActionId = null;
+    }
+
+    private void CancelDeleteProject()
+    {
+        _pendingDeleteProject = null;
+    }
+
+    private async Task ConfirmDeleteProjectAsync()
+    {
+        if (_pendingDeleteProject is null)
+        {
+            return;
+        }
+
+        var project = _pendingDeleteProject;
+        _deletingProjectId = project.Id;
+        _message = null;
+        try
+        {
+            var result = await Projects.DeleteProjectAsync(project.Id);
+            if (!result.Succeeded)
+            {
+                _message = result.ErrorMessage;
+                return;
+            }
+
+            _pendingDeleteProject = null;
+            _message = "Deleted web automation project.";
+            await LoadProjectsAsync();
+        }
+        catch (Exception ex)
+        {
+            _message = ex.Message;
+        }
+        finally
+        {
+            _deletingProjectId = null;
+        }
+    }
+}

@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>PcAssistant</title>
     <base href="/" />
-    <link rel="stylesheet" href="css/tailwind.css" />
-    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="bundles/app.min.css" />
     <link rel="stylesheet" href="PcAssistant.styles.css" />
     <link rel="icon" href="images/appicon.png">
 </head>
@@ -36,8 +35,9 @@
         <span class="dismiss">x</span>
     </div>
 
-    <script src="js/assistant-directory-picker.js"></script>
-    <script src="js/automation-picker.js"></script>
+    <script src="lib/sortablejs/Sortable.min.js"></script>
+    <script src="lib/gsap/gsap.min.js"></script>
+    <script src="bundles/app.min.js"></script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
 
 </body>

@@ -29,6 +29,10 @@ public interface IScheduledTaskService
         ScheduleMessageAutomationRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<ScheduledTaskItem> ScheduleWebAutomationAsync(
+        ScheduleWebAutomationRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<ScheduledTaskItem>> CompleteDueTasksAsync(CancellationToken cancellationToken = default);
 
     Task<ScheduledTaskItem?> CancelQueuedTaskAsync(

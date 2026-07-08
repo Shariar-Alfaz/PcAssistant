@@ -1,0 +1,1157 @@
+@page "/automation/web/{ProjectId:guid}"
+@implements IAsyncDisposable
+@inject IWebAutomationProjectService Projects
+@inject IWebPreviewService Preview
+@inject IScheduledTaskService ScheduledTasks
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+@using PcAssistant.Application.Abstractions.Services
+@using PcAssistant.Domain.Entity
+@using PcAssistant.Domain.Enums
+
+<PageTitle>Web Automation Builder</PageTitle>
+
+<section id="@BuilderSurfaceId" class="ui-scrollbar web-automation-builder-shell h-screen min-h-0 overflow-y-auto px-5 py-6 text-[#d9e2f1] sm:px-8">
+    <div class="web-automation-ambient" aria-hidden="true"></div>
+    <div class="web-automation-builder-content mx-auto flex w-full max-w-[92rem] flex-col gap-5">
+        <header class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Builder</p>
+                <h1 class="mt-1 text-2xl font-semibold text-white">@(_project?.Name ?? "Web automation")</h1>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                        type="button"
+                        @onclick="OpenProjects">
+                    Projects
+                </button>
+                <button class="rounded-lg border border-sky-300/20 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 transition hover:bg-sky-300/15 disabled:opacity-60"
+                        type="button"
+                        disabled="@(_flow is null || _isRunning)"
+                        @onclick="RunFullFlowAsync">
+                    @(_isRunning ? "Running..." : "Full run")
+                </button>
+                <button class="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:opacity-60"
+                        type="button"
+                        disabled="@(_flow is null || _isScheduling)"
+                        @onclick="ScheduleFlowAsync">
+                    @(_isScheduling ? "Scheduling..." : "Schedule")
+                </button>
+            </div>
+        </header>
+
+        @if (_isLoading)
+        {
+            <div class="grid gap-4 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
+                <div class="h-96 animate-pulse rounded-[1.25rem] bg-white/8"></div>
+                <div class="h-96 animate-pulse rounded-[1.25rem] bg-white/8"></div>
+                <div class="h-96 animate-pulse rounded-[1.25rem] bg-white/8"></div>
+            </div>
+        }
+        else if (_project is null || _flow is null)
+        {
+            <p class="rounded-xl border border-rose-300/20 bg-rose-950/80 px-3 py-3 text-sm text-rose-100">Project was not found.</p>
+        }
+        else
+        {
+            <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-3 shadow-xl shadow-black/20">
+                <div class="flex flex-wrap items-end gap-3">
+                    <label class="min-w-[12rem]" style="flex: 1 1 14rem;">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Project name</span>
+                        <input class="mt-1 min-h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               value="@_projectName"
+                               @oninput="args => _projectName = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="min-w-[12rem]" style="flex: 1 1 14rem;">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Description</span>
+                        <input class="mt-1 min-h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               value="@_projectDescription"
+                               @oninput="args => _projectDescription = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="min-w-64" style="flex: 1.35 1 18rem;">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Website URL</span>
+                        <input class="mt-1 min-h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white outline-none placeholder:text-[#8995ad] focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               placeholder="https://example.com"
+                               value="@_projectStartUrl"
+                               @oninput="args => _projectStartUrl = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <button class="min-h-10 shrink-0 rounded-lg bg-[#dce9ff] px-4 py-2 text-xs font-semibold text-[#0b1427] transition hover:bg-white disabled:opacity-60"
+                            type="button"
+                            disabled="@_isSavingProject"
+                            @onclick="SaveProjectAsync">
+                        @(_isSavingProject ? "Saving..." : "Save project")
+                    </button>
+                </div>
+            </section>
+
+            <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+                <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr]">
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Start URL</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               value="@_flowStartUrl"
+                               @oninput="args => _flowStartUrl = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Timeout</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               type="number"
+                               value="@_flowTimeout"
+                               @oninput="args => _flowTimeout = ParseInt(args.Value, _flowTimeout)" />
+                    </label>
+                    <label class="mt-6 flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white">
+                        <input type="checkbox" checked="@_usePersistentSession" @onchange="args => _usePersistentSession = args.Value is bool value && value" />
+                        Persistent session
+                    </label>
+                    <button class="mt-6 rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:opacity-60"
+                            type="button"
+                            disabled="@_isSavingFlow"
+                            @onclick="SaveFlowAsync">
+                        @(_isSavingFlow ? "Saving..." : "Save flow")
+                    </button>
+                </div>
+                <div class="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr]">
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Start date</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               type="date"
+                               value="@_scheduleDateText"
+                               @oninput="args => _scheduleDateText = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Start time</span>
+                        <input class="mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10"
+                               type="time"
+                               value="@_scheduleTimeText"
+                               @oninput="args => _scheduleTimeText = args.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold tracking-[0.14em] text-[#8fa1bc] uppercase">Repeat</span>
+                        <select class="@SelectClass"
+                                value="@_repeatMode"
+                                @onchange="args => _repeatMode = args.Value?.ToString() == ScheduledTask.WeeklyRepeatMode ? ScheduledTask.WeeklyRepeatMode : ScheduledTask.NoRepeatMode">
+                            <option class="bg-[#111b2e] text-white" value="@ScheduledTask.NoRepeatMode">One time</option>
+                            <option class="bg-[#111b2e] text-white" value="@ScheduledTask.WeeklyRepeatMode">Weekly</option>
+                        </select>
+                    </label>
+                    <button class="mt-6 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/15 disabled:opacity-60"
+                            type="button"
+                            disabled="@_isScheduling"
+                            @onclick="ScheduleFlowAsync">
+                        @(_isScheduling ? "Scheduling..." : "Schedule run")
+                    </button>
+                </div>
+            </section>
+
+            <section class="rounded-[1.25rem] border border-white/10 bg-[#101d2f]/92 p-4 shadow-xl shadow-black/20">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Scheduled</p>
+                        <h2 class="mt-1 text-base font-semibold text-white">Web automation runs</h2>
+                    </div>
+                    <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled="@_isRefreshingScheduledRuns"
+                            @onclick="RefreshScheduledRunsAsync">
+                        @(_isRefreshingScheduledRuns ? "Refreshing..." : "Refresh")
+                    </button>
+                </div>
+
+                @if (_scheduledRuns.Count == 0)
+                {
+                    <p class="mt-4 rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-5 text-center text-sm text-[#aab6c9]">No scheduled web runs for this flow.</p>
+                }
+                else
+                {
+                    <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                        @foreach (var task in _scheduledRuns)
+                        {
+                            <article class="rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <h3 class="text-sm font-semibold text-white">@task.DisplayName</h3>
+                                        <p class="mt-1 text-xs leading-5 text-[#aab6c9]">@FormatSchedule(task) &middot; @FormatRepeat(task)</p>
+                                        @if (!string.IsNullOrWhiteSpace(task.AppPath))
+                                        {
+                                            <p class="mt-1 text-xs leading-5 text-[#b9c8dc] [overflow-wrap:anywhere]">@task.AppPath</p>
+                                        }
+                                    </div>
+                                    <span class="@StatusClass(task)">@FormatStatus(task)</span>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(task.LastMessage))
+                                {
+                                    <p class="mt-2 text-xs leading-5 text-[#8fa1bc]">@task.LastMessage</p>
+                                }
+
+                                <div class="mt-3 flex justify-end gap-2">
+                                    @if (IsQueued(task))
+                                    {
+                                        <button class="rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                                type="button"
+                                                disabled="@(_cancellingTaskId == task.Id || _removingTaskId == task.Id)"
+                                                @onclick="() => CancelScheduledRunAsync(task)">
+                                            @(_cancellingTaskId == task.Id ? "Cancelling..." : "Cancel")
+                                        </button>
+                                    }
+                                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-1.5 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                            type="button"
+                                            disabled="@(_removingTaskId == task.Id || _cancellingTaskId == task.Id)"
+                                            @onclick="() => AskDeleteScheduledRun(task)">
+                                        @(_removingTaskId == task.Id ? "Deleting..." : "Delete")
+                                    </button>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <div class="grid min-h-0 gap-4 xl:grid-cols-[18rem_minmax(0,1fr)_22rem]">
+                <div class="web-automation-panel-sticky">
+                    <StepToolbox OnAddStep="AddStepFromTemplateAsync" />
+                </div>
+                <div class="web-automation-center-split min-w-0"
+                     data-web-preview-workflow-split="true"
+                     data-web-preview-workflow-storage-key="@PreviewWorkflowSplitStorageKey">
+                    <div class="web-automation-preview-pane">
+                        <WebPreviewPanel StartUrl="@_flowStartUrl"
+                                         Preview="Preview"
+                                         SelectedStep="@_selectedStep"
+                                         OnSelectorCaptured="ApplyCapturedSelectorAsync"
+                                         OnClickTargetCaptured="ApplyClickTargetAsync"
+                                         OnInputTargetCaptured="ApplyInputTargetAsync"
+                                         OnUploadTargetCaptured="ApplyUploadTargetAsync"
+                                         OnMessage="ShowMessageAsync" />
+                    </div>
+                    <button class="web-automation-preview-splitter"
+                            type="button"
+                            aria-label="Resize preview and workflow panels"
+                            data-web-preview-workflow-splitter="true">
+                        <span aria-hidden="true"></span>
+                    </button>
+                    <div class="web-automation-workflow-pane">
+                        <StepList Steps="@_steps"
+                                  SelectedStepId="@_selectedStep?.Id"
+                                  OnSelectStep="SelectStep"
+                                  OnDeleteStep="AskDeleteStep"
+                                  OnDuplicateStep="DuplicateStepAsync"
+                                  OnReorderSteps="ReorderStepsAsync" />
+                    </div>
+                </div>
+                <div class="web-automation-panel-sticky web-automation-panel-stack flex min-w-0 flex-col gap-4">
+                    <StepEditor Step="@_selectedStep"
+                                OnStepChanged="UpdateSelectedStepAsync"
+                                OnRunStep="RunSelectedStepAsync" />
+                    <RunLogs Logs="@_runLogs"
+                             OnPreviewScreenshot="ShowScreenshotPreviewAsync" />
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (_pendingDeleteTask is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+            <section class="w-full max-w-md rounded-2xl border border-white/10 bg-[#101d2f] p-4 shadow-2xl shadow-black/50">
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Confirm delete</p>
+                <h2 class="mt-2 text-base font-semibold text-white">@_pendingDeleteTask.DisplayName</h2>
+                <p class="mt-2 text-sm leading-6 text-[#aab6c9]">This scheduled web automation run will be permanently deleted.</p>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                            type="button"
+                            @onclick="CancelDeleteScheduledRun">
+                        Keep
+                    </button>
+                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled="@(_removingTaskId == _pendingDeleteTask.Id)"
+                            @onclick="ConfirmDeleteScheduledRunAsync">
+                        @(_removingTaskId == _pendingDeleteTask.Id ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (_pendingDeleteStep is not null)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6">
+            <section class="w-full max-w-md rounded-2xl border border-white/10 bg-[#101d2f] p-4 shadow-2xl shadow-black/50">
+                <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Confirm delete</p>
+                <h2 class="mt-2 text-base font-semibold text-white">@DescriptionOrType(_pendingDeleteStep)</h2>
+                <p class="mt-2 text-sm leading-6 text-[#aab6c9]">This workflow step will be permanently deleted and the remaining steps will be renumbered.</p>
+                <div class="mt-4 flex justify-end gap-2">
+                    <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled="@(_deletingStepId == _pendingDeleteStep.Id)"
+                            @onclick="CancelDeleteStep">
+                        Keep
+                    </button>
+                    <button class="rounded-lg border border-rose-300/20 bg-rose-300/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            type="button"
+                            disabled="@(_deletingStepId == _pendingDeleteStep.Id)"
+                            @onclick="ConfirmDeleteStepAsync">
+                        @(_deletingStepId == _pendingDeleteStep.Id ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <aside class="@ToastClass" data-web-automation-toast="true" role="status" aria-live="polite">
+            <p class="font-semibold tracking-[0.14em] text-[0.64rem] uppercase">@ToastTitle</p>
+            <p class="mt-1 text-sm leading-5">@_message</p>
+        </aside>
+    }
+</section>
+
+@if (!string.IsNullOrWhiteSpace(_previewScreenshotPath))
+{
+    <div class="fixed inset-0 z-[70] flex bg-black/80 p-0 text-[#d9e2f1]">
+        <section class="flex h-screen min-h-0 w-screen flex-col overflow-hidden border border-white/10 bg-[#071321] shadow-2xl shadow-black/50">
+            <div class="flex items-start justify-between gap-3 border-b border-white/10 bg-[#101d2f] px-4 py-3 sm:px-6">
+                <div class="min-w-0">
+                    <p class="font-semibold tracking-[0.14em] text-[0.68rem] text-[#8fa1bc] uppercase">Screenshot preview</p>
+                    <p class="mt-1 truncate text-xs text-[#aab6c9]" title="@_previewScreenshotPath">@_previewScreenshotPath</p>
+                </div>
+                <button class="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                        type="button"
+                        @onclick="CloseScreenshotPreview">
+                    Close
+                </button>
+            </div>
+            <div class="ui-scrollbar flex min-h-0 flex-1 overflow-auto bg-black/35 p-3 sm:p-5">
+                @if (_isLoadingScreenshotPreview)
+                {
+                    <div class="flex min-h-full w-full items-center justify-center px-4 text-center text-sm text-[#aab6c9]">
+                        Loading screenshot preview...
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_previewScreenshotError))
+                {
+                    <div class="flex min-h-full w-full items-center justify-center px-4">
+                        <p class="w-full max-w-2xl rounded-xl border border-rose-300/20 bg-rose-950/60 px-3 py-3 text-sm text-rose-100">
+                            @_previewScreenshotError
+                        </p>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_previewScreenshotDataUri))
+                {
+                    <img class="mx-auto h-auto w-full max-w-none self-start object-contain"
+                         src="@_previewScreenshotDataUri"
+                         alt="Captured web automation screenshot" />
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private readonly List<WebAutomationStepDto> _steps = new();
+    private readonly List<WebAutomationRunDto> _runLogs = new();
+    private readonly List<ScheduledTaskItem> _scheduledRuns = new();
+    private WebAutomationProjectDto? _project;
+    private WebAutomationFlowDto? _flow;
+    private WebAutomationStepDto? _selectedStep;
+    private ScheduledTaskItem? _pendingDeleteTask;
+    private WebAutomationStepDto? _pendingDeleteStep;
+    private string _projectName = string.Empty;
+    private string _projectDescription = string.Empty;
+    private string _projectStartUrl = string.Empty;
+    private string _flowStartUrl = string.Empty;
+    private int _flowTimeout = 30000;
+    private bool _usePersistentSession = true;
+    private string? _message;
+    private bool _isLoading = true;
+    private bool _isSavingProject;
+    private bool _isSavingFlow;
+    private bool _isRunning;
+    private bool _isScheduling;
+    private bool _isRefreshingScheduledRuns;
+    private int _messageVersion;
+    private int _animatedMessageVersion;
+    private bool _isLoadingScreenshotPreview;
+    private Guid? _cancellingTaskId;
+    private Guid? _removingTaskId;
+    private Guid? _deletingStepId;
+    private string? _previewScreenshotPath;
+    private string? _previewScreenshotDataUri;
+    private string? _previewScreenshotError;
+    private string _scheduleDateText = DateTimeOffset.Now.AddMinutes(5).ToString("yyyy-MM-dd");
+    private string _scheduleTimeText = DateTimeOffset.Now.AddMinutes(5).ToString("HH:mm");
+    private string _repeatMode = ScheduledTask.NoRepeatMode;
+    private readonly string BuilderSurfaceId = $"web-automation-builder-{Guid.NewGuid():N}";
+    private readonly CancellationTokenSource _componentCancellation = new();
+    private string PreviewWorkflowSplitStorageKey => $"pc-assistant:web-automation:{ProjectId:D}:preview-workflow-split";
+
+    private bool IsSuccessMessage => _message?.StartsWith("Saved", StringComparison.OrdinalIgnoreCase) == true || _message?.StartsWith("Run", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.StartsWith("Scheduled", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.StartsWith("Step", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.Contains("saved", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.Contains("deleted", StringComparison.OrdinalIgnoreCase) == true
+        || _message?.Contains("created", StringComparison.OrdinalIgnoreCase) == true;
+    private string ToastTitle => IsSuccessMessage ? "Done" : "Notice";
+    private string ToastClass => IsSuccessMessage
+        ? "web-automation-toast border border-emerald-300/25 bg-[#0f2a24]/90 px-4 py-3 text-emerald-100"
+        : "web-automation-toast border border-sky-300/25 bg-[#0e2035]/90 px-4 py-3 text-sky-100";
+    private const string SelectClass = "mt-1 min-h-11 w-full rounded-xl border border-white/10 bg-[#111b2e] px-3 text-sm text-white outline-none focus:border-[#8ec5ff] focus:ring-4 focus:ring-[#8ec5ff]/10";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync(preserveDraft: false);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JsRuntime.InvokeVoidAsync(
+                "pcAssistantWebAutomation.initializeBuilderSurface",
+                _componentCancellation.Token,
+                BuilderSurfaceId);
+            await JsRuntime.InvokeVoidAsync(
+                "pcAssistantWebAutomation.initializePreviewWorkflowSplitter",
+                _componentCancellation.Token,
+                BuilderSurfaceId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_message) && _messageVersion != _animatedMessageVersion)
+        {
+            await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.animateToast", _componentCancellation.Token);
+            _animatedMessageVersion = _messageVersion;
+        }
+    }
+
+    private async Task LoadAsync(bool preserveDraft)
+    {
+        var draftProjectName = _projectName;
+        var draftProjectDescription = _projectDescription;
+        var draftProjectStartUrl = _projectStartUrl;
+        var draftUrl = _flowStartUrl;
+        var draftTimeout = _flowTimeout;
+        var draftPersistent = _usePersistentSession;
+        _isLoading = true;
+        _project = await Projects.GetProjectDetailsAsync(ProjectId, _componentCancellation.Token);
+        _flow = _project?.Flows.FirstOrDefault();
+        _steps.Clear();
+        _runLogs.Clear();
+        if (_project is not null)
+        {
+            _projectName = preserveDraft ? draftProjectName : _project.Name;
+            _projectDescription = preserveDraft ? draftProjectDescription : _project.Description ?? string.Empty;
+            _projectStartUrl = preserveDraft ? draftProjectStartUrl : _project.StartUrl;
+        }
+
+        if (_flow is not null)
+        {
+            _flowStartUrl = preserveDraft ? draftUrl : _flow.StartUrl;
+            _flowTimeout = preserveDraft ? draftTimeout : _flow.DefaultTimeoutMs;
+            _usePersistentSession = preserveDraft ? draftPersistent : _flow.UsePersistentSession;
+            _steps.AddRange(_flow.Steps);
+            _selectedStep = _selectedStep is null
+                ? _steps.FirstOrDefault()
+                : _steps.FirstOrDefault(step => step.Id == _selectedStep.Id) ?? _steps.FirstOrDefault();
+            _runLogs.AddRange(await Projects.GetRunLogsAsync(_flow.Id, _componentCancellation.Token));
+            await RefreshScheduledRunsAsync();
+        }
+        else
+        {
+            _scheduledRuns.Clear();
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task SaveProjectAsync()
+    {
+        if (_project is null)
+        {
+            return;
+        }
+
+        _isSavingProject = true;
+        var result = await Projects.UpdateProjectAsync(
+            new UpdateWebAutomationProjectRequest(_project.Id, _projectName, _projectDescription, _projectStartUrl),
+            _componentCancellation.Token);
+        _isSavingProject = false;
+        SetMessage(result.Succeeded ? "Saved project." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: false);
+    }
+
+    private async Task SaveFlowAsync()
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        _isSavingFlow = true;
+        var result = await Projects.UpdateFlowAsync(
+            new UpdateWebAutomationFlowRequest(_flow.Id, _flow.Name, _flowStartUrl, _flow.Headless, _flow.BrowserChannel, _usePersistentSession, _flowTimeout),
+            _componentCancellation.Token);
+        _isSavingFlow = false;
+        SetMessage(result.Succeeded ? "Saved flow." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: false);
+    }
+
+    private async Task AddStepFromTemplateAsync(WebAutomationStepType stepType)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        var request = new CreateWebAutomationStepRequest(
+            _flow.Id,
+            stepType,
+            WebSelectorType.Css,
+            DefaultSelector(stepType),
+            DefaultValue(stepType),
+            stepType == WebAutomationStepType.GotoUrl ? _flowStartUrl : null,
+            StepLabel(stepType),
+            _flowTimeout,
+            250,
+            false,
+            stepType == WebAutomationStepType.Screenshot,
+            0);
+        var result = await Projects.AddStepAsync(request, _componentCancellation.Token);
+        if (!result.Succeeded || result.Value is null)
+        {
+            SetMessage(result.ErrorMessage);
+            return;
+        }
+
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantWebAutomation.animateToolAddedToInsertionSlot",
+            _componentCancellation.Token,
+            stepType.ToString());
+        SetMessage("Step added.");
+        _selectedStep = result.Value;
+        await LoadAsync(preserveDraft: true);
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantWebAutomation.animateNewStepCardById",
+            _componentCancellation.Token,
+            result.Value.Id.ToString("D"));
+    }
+
+    private void SelectStep(WebAutomationStepDto step)
+    {
+        _selectedStep = step;
+        ClearMessage();
+    }
+
+    private async Task UpdateSelectedStepAsync(UpdateWebAutomationStepRequest request)
+    {
+        var result = await Projects.UpdateStepAsync(request, _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Step saved." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private void AskDeleteStep(WebAutomationStepDto step)
+    {
+        _pendingDeleteStep = step;
+    }
+
+    private void CancelDeleteStep()
+    {
+        if (_deletingStepId is null)
+        {
+            _pendingDeleteStep = null;
+        }
+    }
+
+    private async Task ConfirmDeleteStepAsync()
+    {
+        if (_pendingDeleteStep is null)
+        {
+            return;
+        }
+
+        var step = _pendingDeleteStep;
+        _deletingStepId = step.Id;
+        var result = await Projects.DeleteStepAsync(step.Id, _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Step deleted." : result.ErrorMessage);
+        if (result.Succeeded)
+        {
+            await JsRuntime.InvokeVoidAsync(
+                "pcAssistantWebAutomation.animateStepDeletedById",
+                _componentCancellation.Token,
+                step.Id.ToString("D"));
+            _pendingDeleteStep = null;
+        }
+
+        _deletingStepId = null;
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task DuplicateStepAsync(WebAutomationStepDto step)
+    {
+        var result = await Projects.DuplicateStepAsync(step.Id, _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Step duplicated." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ReorderStepsAsync(IReadOnlyList<Guid> stepIds)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        ApplyLocalStepOrder(stepIds);
+        StateHasChanged();
+
+        var result = await Projects.ReorderStepsAsync(
+            new ReorderWebAutomationStepsRequest(_flow.Id, stepIds),
+            _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Step order saved." : result.ErrorMessage);
+        if (result.Succeeded && result.Value is not null)
+        {
+            _steps.Clear();
+            _steps.AddRange(result.Value);
+            var savedStepIds = _steps.OrderBy(step => step.OrderIndex).Select(step => step.Id.ToString("D")).ToArray();
+            _selectedStep = _selectedStep is null
+                ? _steps.FirstOrDefault()
+                : _steps.FirstOrDefault(step => step.Id == _selectedStep.Id) ?? _steps.FirstOrDefault();
+            StateHasChanged();
+            await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.syncStepDomOrder", _componentCancellation.Token, savedStepIds);
+            await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.animateStepOrderSaved", _componentCancellation.Token);
+            return;
+        }
+
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private void ApplyLocalStepOrder(IReadOnlyList<Guid> stepIds)
+    {
+        var stepsById = _steps.ToDictionary(step => step.Id);
+        if (stepIds.Count != _steps.Count || stepIds.Any(id => !stepsById.ContainsKey(id)))
+        {
+            return;
+        }
+
+        _steps.Clear();
+        for (var index = 0; index < stepIds.Count; index++)
+        {
+            _steps.Add(stepsById[stepIds[index]] with { OrderIndex = index + 1 });
+        }
+
+        _selectedStep = _selectedStep is null
+            ? _steps.FirstOrDefault()
+            : _steps.FirstOrDefault(step => step.Id == _selectedStep.Id) ?? _steps.FirstOrDefault();
+    }
+
+    private async Task RunSelectedStepAsync()
+    {
+        if (_flow is null || _selectedStep is null)
+        {
+            return;
+        }
+
+        var result = await Projects.RunSingleStepAsync(_flow.Id, _selectedStep.Id, _componentCancellation.Token);
+        SetMessage(result.Succeeded ? result.Value?.Message ?? "Step run completed." : result.ErrorMessage);
+    }
+
+    private async Task RunFullFlowAsync()
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        _isRunning = true;
+        var result = await Projects.RunFlowAsync(
+            new RunWebAutomationFlowRequest(_flow.Id, RunHeaded: false, RequireConfirmation: true),
+            _componentCancellation.Token);
+        _isRunning = false;
+        SetMessage(result.Succeeded ? $"Run {result.Value?.Status}." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ApplyCapturedSelectorAsync(string selector)
+    {
+        if (_selectedStep is null)
+        {
+            SetMessage("Select a step before capturing a selector.");
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            _selectedStep.StepType,
+            WebSelectorType.Css,
+            selector,
+            _selectedStep.Value,
+            _selectedStep.Url,
+            _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount),
+            _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Selector captured and saved." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ApplyClickTargetAsync(string selector)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        if (_selectedStep is null)
+        {
+            var addResult = await Projects.AddStepAsync(new CreateWebAutomationStepRequest(
+                _flow.Id,
+                WebAutomationStepType.Click,
+                WebSelectorType.Css,
+                selector,
+                null,
+                null,
+                "Click target",
+                _flowTimeout,
+                250,
+                false,
+                false,
+                0),
+                _componentCancellation.Token);
+            SetMessage(addResult.Succeeded ? "Click step created from preview target." : addResult.ErrorMessage);
+            _selectedStep = addResult.Value;
+            await LoadAsync(preserveDraft: true);
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            WebAutomationStepType.Click,
+            WebSelectorType.Css,
+            selector,
+            null,
+            null,
+            string.IsNullOrWhiteSpace(_selectedStep.Description) ? "Click target" : _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount),
+            _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Selected step is now a preview click target." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ApplyInputTargetAsync(string selector)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        if (_selectedStep is null)
+        {
+            var addResult = await Projects.AddStepAsync(new CreateWebAutomationStepRequest(
+                _flow.Id,
+                WebAutomationStepType.Fill,
+                WebSelectorType.Css,
+                selector,
+                "sample text",
+                null,
+                "Fill input",
+                _flowTimeout,
+                250,
+                false,
+                false,
+                0),
+                _componentCancellation.Token);
+            SetMessage(addResult.Succeeded ? "Fill step created from preview input." : addResult.ErrorMessage);
+            _selectedStep = addResult.Value;
+            await LoadAsync(preserveDraft: true);
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            WebAutomationStepType.Fill,
+            WebSelectorType.Css,
+            selector,
+            string.IsNullOrWhiteSpace(_selectedStep.Value) ? "sample text" : _selectedStep.Value,
+            null,
+            string.IsNullOrWhiteSpace(_selectedStep.Description) ? "Fill input" : _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount),
+            _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Selected step is now a preview input target." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ApplyUploadTargetAsync(string selector)
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        if (_selectedStep is null)
+        {
+            var addResult = await Projects.AddStepAsync(new CreateWebAutomationStepRequest(
+                _flow.Id,
+                WebAutomationStepType.UploadFile,
+                WebSelectorType.Css,
+                selector,
+                null,
+                null,
+                "Upload file",
+                _flowTimeout,
+                250,
+                false,
+                false,
+                0),
+                _componentCancellation.Token);
+            SetMessage(addResult.Succeeded ? "Upload step created from preview target." : addResult.ErrorMessage);
+            _selectedStep = addResult.Value;
+            await LoadAsync(preserveDraft: true);
+            return;
+        }
+
+        var result = await Projects.UpdateStepAsync(new UpdateWebAutomationStepRequest(
+            _selectedStep.Id,
+            WebAutomationStepType.UploadFile,
+            WebSelectorType.Css,
+            selector,
+            _selectedStep.Value,
+            null,
+            string.IsNullOrWhiteSpace(_selectedStep.Description) ? "Upload file" : _selectedStep.Description,
+            _selectedStep.TimeoutMs,
+            _selectedStep.DelayAfterMs,
+            _selectedStep.IsOptional,
+            _selectedStep.TakeScreenshotAfterStep,
+            _selectedStep.RetryCount),
+            _componentCancellation.Token);
+        SetMessage(result.Succeeded ? "Selected step is now a preview upload target." : result.ErrorMessage);
+        await LoadAsync(preserveDraft: true);
+    }
+
+    private async Task ScheduleFlowAsync()
+    {
+        if (_flow is null)
+        {
+            return;
+        }
+
+        _isScheduling = true;
+        var saveResult = await Projects.UpdateFlowAsync(
+            new UpdateWebAutomationFlowRequest(_flow.Id, _flow.Name, _flowStartUrl, _flow.Headless, _flow.BrowserChannel, _usePersistentSession, _flowTimeout),
+            _componentCancellation.Token);
+        if (!saveResult.Succeeded)
+        {
+            SetMessage(saveResult.ErrorMessage);
+            _isScheduling = false;
+            return;
+        }
+
+        try
+        {
+            var task = await ScheduledTasks.ScheduleWebAutomationAsync(new ScheduleWebAutomationRequest(
+                _flow.Id,
+                _flow.Name,
+                _flowStartUrl,
+                BuildScheduleTime(),
+                _repeatMode,
+                _repeatMode == ScheduledTask.WeeklyRepeatMode ? DayMask(DateTimeOffset.Now.DayOfWeek) : 0),
+                _componentCancellation.Token);
+            SetMessage($"Scheduled for {task.ScheduledForUtc.ToLocalTime():MMM d, h:mm tt}.");
+            await RefreshScheduledRunsAsync();
+        }
+        catch (Exception ex)
+        {
+            SetMessage(ex.Message);
+        }
+        finally
+        {
+            _isScheduling = false;
+        }
+
+        await LoadAsync(preserveDraft: false);
+    }
+
+    private async Task RefreshScheduledRunsAsync()
+    {
+        if (_flow is null || _isRefreshingScheduledRuns)
+        {
+            return;
+        }
+
+        _isRefreshingScheduledRuns = true;
+        try
+        {
+            var flowIdText = _flow.Id.ToString("D");
+            var page = await ScheduledTasks.ListByTaskTypeAsync(
+                ScheduledTask.WebAutomationTaskType,
+                pageNumber: 1,
+                pageSize: 50,
+                searchText: flowIdText,
+                cancellationToken: _componentCancellation.Token);
+
+            _scheduledRuns.Clear();
+            _scheduledRuns.AddRange(page.Items.Where(task => string.Equals(task.MessageText, flowIdText, StringComparison.OrdinalIgnoreCase)));
+        }
+        finally
+        {
+            _isRefreshingScheduledRuns = false;
+        }
+    }
+
+    private async Task CancelScheduledRunAsync(ScheduledTaskItem task)
+    {
+        _cancellingTaskId = task.Id;
+        ClearMessage();
+        try
+        {
+            var cancelled = await ScheduledTasks.CancelQueuedTaskAsync(
+                task.Id,
+                "Web automation schedule cancelled.",
+                _componentCancellation.Token);
+            SetMessage(cancelled is null ? "Scheduled run is no longer queued." : "Scheduled run cancelled.");
+            await RefreshScheduledRunsAsync();
+        }
+        catch (Exception ex)
+        {
+            SetMessage(ex.Message);
+        }
+        finally
+        {
+            _cancellingTaskId = null;
+        }
+    }
+
+    private void AskDeleteScheduledRun(ScheduledTaskItem task)
+    {
+        _pendingDeleteTask = task;
+    }
+
+    private void CancelDeleteScheduledRun()
+    {
+        _pendingDeleteTask = null;
+    }
+
+    private async Task ConfirmDeleteScheduledRunAsync()
+    {
+        if (_pendingDeleteTask is null)
+        {
+            return;
+        }
+
+        var task = _pendingDeleteTask;
+        _removingTaskId = task.Id;
+        ClearMessage();
+        try
+        {
+            await ScheduledTasks.DeleteTaskAsync(task.Id, _componentCancellation.Token);
+            _pendingDeleteTask = null;
+            SetMessage("Scheduled run deleted.");
+            await RefreshScheduledRunsAsync();
+        }
+        catch (Exception ex)
+        {
+            SetMessage(ex.Message);
+        }
+        finally
+        {
+            _removingTaskId = null;
+        }
+    }
+
+    private Task ShowMessageAsync(string message)
+    {
+        SetMessage(message);
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void SetMessage(string? message)
+    {
+        _message = message;
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            _messageVersion++;
+        }
+    }
+
+    private void ClearMessage()
+    {
+        _message = null;
+    }
+
+    private async Task ShowScreenshotPreviewAsync(string? screenshotPath)
+    {
+        _previewScreenshotPath = string.IsNullOrWhiteSpace(screenshotPath)
+            ? null
+            : screenshotPath;
+        _previewScreenshotDataUri = null;
+        _previewScreenshotError = null;
+
+        if (_previewScreenshotPath is null)
+        {
+            return;
+        }
+
+        _isLoadingScreenshotPreview = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            if (!File.Exists(_previewScreenshotPath))
+            {
+                _previewScreenshotError = "The captured screenshot file could not be found.";
+                return;
+            }
+
+            var bytes = await File.ReadAllBytesAsync(_previewScreenshotPath, _componentCancellation.Token);
+            _previewScreenshotDataUri = $"data:{GetImageMimeType(_previewScreenshotPath)};base64,{Convert.ToBase64String(bytes)}";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or PathTooLongException)
+        {
+            _previewScreenshotError = $"The screenshot preview could not be loaded: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingScreenshotPreview = false;
+        }
+    }
+
+    private void CloseScreenshotPreview()
+    {
+        _previewScreenshotPath = null;
+        _previewScreenshotDataUri = null;
+        _previewScreenshotError = null;
+        _isLoadingScreenshotPreview = false;
+    }
+
+    private void OpenProjects()
+    {
+        Navigation.NavigateTo("/automation/web");
+    }
+
+    private static int ParseInt(object? value, int fallback)
+    {
+        return int.TryParse(value?.ToString(), out var parsed) ? parsed : fallback;
+    }
+
+    private DateTimeOffset BuildScheduleTime()
+    {
+        if (!TimeOnly.TryParse(_scheduleTimeText, out var time))
+        {
+            throw new InvalidOperationException("Choose a valid automation time.");
+        }
+
+        var date = DateOnly.TryParse(_scheduleDateText, out var parsedDate) ? parsedDate : DateOnly.FromDateTime(DateTime.Now);
+        return new DateTimeOffset(date.ToDateTime(time), DateTimeOffset.Now.Offset);
+    }
+
+    private static int DayMask(DayOfWeek dayOfWeek)
+    {
+        return 1 << (int)dayOfWeek;
+    }
+
+    private static bool IsQueued(ScheduledTaskItem task)
+    {
+        return string.Equals(task.QueueStatus, ScheduledTask.QueuedStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatSchedule(ScheduledTaskItem task)
+    {
+        return task.ScheduledForUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+    }
+
+    private static string FormatRepeat(ScheduledTaskItem task)
+    {
+        return task.RepeatMode == ScheduledTask.WeeklyRepeatMode ? "Weekly" : "One time";
+    }
+
+    private static string FormatStatus(ScheduledTaskItem task)
+    {
+        return task.QueueStatus switch
+        {
+            ScheduledTask.QueuedStatus => $"Queued #{task.QueuePosition}",
+            ScheduledTask.CompletedStatus => "Completed",
+            ScheduledTask.CancelledStatus => "Cancelled",
+            ScheduledTask.FailedStatus => "Failed",
+            _ => task.QueueStatus,
+        };
+    }
+
+    private static string StatusClass(ScheduledTaskItem task)
+    {
+        return task.QueueStatus switch
+        {
+            ScheduledTask.QueuedStatus => "rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-semibold text-sky-100",
+            ScheduledTask.CompletedStatus => "rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100",
+            ScheduledTask.CancelledStatus => "rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-100",
+            ScheduledTask.FailedStatus => "rounded-full border border-rose-300/20 bg-rose-300/10 px-3 py-1 text-xs font-semibold text-rose-100",
+            _ => "rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-white",
+        };
+    }
+
+    private static string StepLabel(WebAutomationStepType type) => type switch
+    {
+        WebAutomationStepType.GotoUrl => "Open URL",
+        WebAutomationStepType.WaitForSelector => "Wait for element",
+        WebAutomationStepType.ExtractText => "Extract text",
+        WebAutomationStepType.AssertText => "Assert text",
+        WebAutomationStepType.AssertVisible => "Assert visible",
+        WebAutomationStepType.SelectOption => "Select option",
+        WebAutomationStepType.UploadFile => "Upload file",
+        _ => type.ToString(),
+    };
+
+    private static string DescriptionOrType(WebAutomationStepDto step)
+    {
+        return string.IsNullOrWhiteSpace(step.Description) ? step.StepType.ToString() : step.Description!;
+    }
+
+    private static string? DefaultSelector(WebAutomationStepType type) => type switch
+    {
+        WebAutomationStepType.UploadFile => "input[type=\"file\"]",
+        WebAutomationStepType.Click or WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.WaitForSelector or WebAutomationStepType.ExtractText or WebAutomationStepType.AssertText or WebAutomationStepType.AssertVisible or WebAutomationStepType.SelectOption or WebAutomationStepType.Check or WebAutomationStepType.Uncheck or WebAutomationStepType.Hover => "h1",
+        _ => null,
+    };
+
+    private static string? DefaultValue(WebAutomationStepType type) => type switch
+    {
+        WebAutomationStepType.Fill or WebAutomationStepType.Type => "sample text",
+        WebAutomationStepType.Press => "Enter",
+        WebAutomationStepType.AssertText => "Example Domain",
+        _ => null,
+    };
+
+    private static string GetImageMimeType(string path)
+    {
+        return Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            _ => "image/png",
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantWebAutomation.destroyBuilderSurface",
+            _componentCancellation.Token,
+            BuilderSurfaceId);
+        _componentCancellation.Cancel();
+        _componentCancellation.Dispose();
+    }
+}
