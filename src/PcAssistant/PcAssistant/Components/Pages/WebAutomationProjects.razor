@@ -36,7 +36,7 @@
                            value="@_startUrl"
                            @oninput="args => _startUrl = args.Value?.ToString() ?? string.Empty" />
                 </label>
-                <button class="min-h-11 w-full shrink-0 rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:opacity-60 sm:w-auto"
+                <button class="web-automation-project-create-button min-h-11 shrink-0 rounded-xl bg-[#dce9ff] px-4 py-2 text-sm font-semibold text-[#0b1427] transition hover:bg-white disabled:opacity-60"
                         type="button"
                         disabled="@_isSaving"
                         @onclick="CreateProjectAsync">

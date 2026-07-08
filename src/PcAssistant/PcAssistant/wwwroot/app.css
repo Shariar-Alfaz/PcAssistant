@@ -157,20 +157,20 @@ body {
         linear-gradient(90deg, rgba(142, 197, 255, 0.06) 1px, transparent 1px);
     background-position: 0 0, 0 0;
     background-size: 4rem 4rem;
-    inset: -8rem;
+    inset: -10rem -10rem -30rem;
     opacity: 0.58;
-    transform: perspective(54rem) rotateX(62deg) translateY(-12rem);
+    transform: perspective(54rem) rotateX(58deg) translateY(-8rem);
     transform-origin: center top;
 }
 
 .pc-bg-sweep {
     background: linear-gradient(105deg, transparent 0%, rgba(125, 211, 252, 0.34) 48%, transparent 68%);
-    height: 42%;
-    left: -24%;
+    height: 100%;
+    left: -34%;
     opacity: 0.38;
-    top: 8%;
+    top: 0;
     transform: skewX(-18deg);
-    width: 92%;
+    width: 118%;
 }
 
 .pc-bg-circuit {
@@ -260,6 +260,18 @@ body {
     pointer-events: none;
     position: fixed;
     z-index: -1;
+}
+
+.web-automation-project-create-button {
+    flex: 0 0 auto;
+    min-width: 9.5rem;
+    width: max-content;
+}
+
+@media (max-width: 39.98rem) {
+    .web-automation-project-create-button {
+        width: 100%;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
