@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PcAssistant.Application.Abstractions.Services;
 using PcAssistant.Application.Models;
+using PcAssistant.Domain.Enums;
 using PcAssistant.Persistence.Database;
 using PcAssistant.Persistence.DependencyInjection;
 using Shouldly;
@@ -159,6 +160,35 @@ public sealed class CommandHistoryPersistenceTests
     }
 
     [Test]
+    public async Task Web_automation_project_update_persists_project_details()
+    {
+        var projects = _container.Resolve<IWebAutomationProjectService>();
+        var created = await projects.CreateProjectAsync(new CreateWebAutomationProjectRequest(
+            "Original project",
+            "Original description",
+            "https://original.example.com"));
+        created.Succeeded.ShouldBeTrue();
+        created.Value.ShouldNotBeNull();
+
+        var updated = await projects.UpdateProjectAsync(new UpdateWebAutomationProjectRequest(
+            created.Value.Id,
+            "Renamed project",
+            "Updated description",
+            "https://updated.example.com"));
+
+        updated.Succeeded.ShouldBeTrue();
+        updated.Value.ShouldNotBeNull();
+        updated.Value.Name.ShouldBe("Renamed project");
+        updated.Value.Description.ShouldBe("Updated description");
+        updated.Value.StartUrl.ShouldBe("https://updated.example.com");
+        var reloaded = await projects.GetProjectDetailsAsync(created.Value.Id);
+        reloaded.ShouldNotBeNull();
+        reloaded.Name.ShouldBe("Renamed project");
+        reloaded.Description.ShouldBe("Updated description");
+        reloaded.StartUrl.ShouldBe("https://updated.example.com");
+    }
+
+    [Test]
     public async Task Web_automation_steps_can_be_reordered_and_reloaded_from_database()
     {
         var projects = _container.Resolve<IWebAutomationProjectService>();
@@ -180,6 +210,60 @@ public sealed class CommandHistoryPersistenceTests
         reloaded.ShouldNotBeNull();
         reloaded.Flows.Single().Steps.Select(step => step.Id).ShouldBe(reversedIds);
         reloaded.Flows.Single().Steps.Select(step => step.OrderIndex).ShouldBe([1, 2, 3, 4]);
+    }
+
+    [Test]
+    public async Task Web_automation_step_delete_renumbers_remaining_steps()
+    {
+        var projects = _container.Resolve<IWebAutomationProjectService>();
+        var created = await projects.CreateProjectAsync(new CreateWebAutomationProjectRequest(
+            "Delete step",
+            "Project with removable steps",
+            "https://delete-step.example.com"));
+        created.Succeeded.ShouldBeTrue();
+        created.Value.ShouldNotBeNull();
+        var flow = created.Value.Flows.Single();
+        var removedStepId = flow.Steps.Single(step => step.OrderIndex == 2).Id;
+
+        var deleted = await projects.DeleteStepAsync(removedStepId);
+
+        deleted.Succeeded.ShouldBeTrue();
+        var reloaded = await projects.GetProjectDetailsAsync(created.Value.Id);
+        reloaded.ShouldNotBeNull();
+        var steps = reloaded.Flows.Single().Steps;
+        steps.Select(step => step.Id).ShouldNotContain(removedStepId);
+        steps.Select(step => step.OrderIndex).ShouldBe([1, 2, 3]);
+    }
+
+    [Test]
+    public async Task Web_automation_upload_file_step_can_be_created_without_default_file()
+    {
+        var projects = _container.Resolve<IWebAutomationProjectService>();
+        var created = await projects.CreateProjectAsync(new CreateWebAutomationProjectRequest(
+            "Upload file",
+            "Project with upload step",
+            "https://upload.example.com"));
+        created.Succeeded.ShouldBeTrue();
+        created.Value.ShouldNotBeNull();
+        var flow = created.Value.Flows.Single();
+
+        var added = await projects.AddStepAsync(new CreateWebAutomationStepRequest(
+            flow.Id,
+            WebAutomationStepType.UploadFile,
+            WebSelectorType.Css,
+            "input[type=\"file\"]",
+            null,
+            null,
+            "Upload file",
+            30000,
+            250,
+            false,
+            false,
+            0));
+
+        added.Succeeded.ShouldBeTrue();
+        added.Value.ShouldNotBeNull();
+        added.Value.Value.ShouldBeNull();
     }
 
     private static CommandResponse CreateResponse(string label, double confidence)

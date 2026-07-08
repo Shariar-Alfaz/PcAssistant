@@ -410,7 +410,16 @@ public sealed class WebAutomationProjectService(
         }
 
         var now = DateTime.UtcNow;
+        var temporaryOrderIndex = flow.Steps.Count + 1;
+        foreach (var step in flow.Steps.OrderBy(step => step.OrderIndex).ThenBy(step => step.CreatedAtUtc))
+        {
+            step.SetOrderIndex(temporaryOrderIndex++, now);
+        }
+
+        await unitOfWork.CommitAsync(cancellationToken);
+
         var index = 1;
+        now = DateTime.UtcNow;
         foreach (var step in flow.Steps.OrderBy(step => step.OrderIndex).ThenBy(step => step.CreatedAtUtc))
         {
             step.SetOrderIndex(index++, now);
@@ -469,7 +478,7 @@ public sealed class WebAutomationProjectService(
             return $"{stepType} requires a selector.";
         }
 
-        if (stepType is WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.Press or WebAutomationStepType.AssertText or WebAutomationStepType.UploadFile
+        if (stepType is WebAutomationStepType.Fill or WebAutomationStepType.Type or WebAutomationStepType.Press or WebAutomationStepType.AssertText
             && string.IsNullOrWhiteSpace(value))
         {
             return $"{stepType} requires a value.";

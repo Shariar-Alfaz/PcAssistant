@@ -428,7 +428,7 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
     inset: 0;
     overflow: hidden;
     pointer-events: none;
-    position: fixed;
+    position: absolute;
     z-index: 0;
 }
 
@@ -477,6 +477,112 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
     overflow: hidden;
 }
 
+.web-automation-center-split {
+    --web-automation-preview-height: 26rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.web-automation-preview-pane {
+    min-height: 16.25rem;
+}
+
+.web-automation-preview-pane > section {
+    height: 100%;
+}
+
+.web-automation-preview-pane iframe,
+.web-automation-preview-pane img,
+.web-automation-preview-pane [id^="web-preview-root-"] > div:first-child {
+    height: var(--web-automation-preview-height) !important;
+    max-height: none !important;
+}
+
+.web-automation-preview-pane [id^="web-preview-root-"] > .absolute {
+    min-height: var(--web-automation-preview-height) !important;
+}
+
+.web-automation-preview-splitter {
+    align-items: center;
+    cursor: ns-resize;
+    display: flex;
+    height: 1.1rem;
+    justify-content: center;
+    margin: 0.15rem 0;
+    position: relative;
+    touch-action: none;
+    z-index: 3;
+}
+
+.web-automation-preview-splitter::before {
+    background: rgba(125, 211, 252, 0.2);
+    content: "";
+    height: 1px;
+    left: 0;
+    position: absolute;
+    right: 0;
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.web-automation-preview-splitter span {
+    background: #10243a;
+    border: 1px solid rgba(125, 211, 252, 0.42);
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    display: block;
+    height: 0.36rem;
+    position: relative;
+    transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+    width: 3rem;
+}
+
+.web-automation-preview-splitter:hover::before,
+.web-automation-preview-splitter:focus-visible::before,
+.web-automation-split-resizing .web-automation-preview-splitter::before {
+    background: rgba(125, 211, 252, 0.58);
+    box-shadow: 0 0 22px rgba(56, 189, 248, 0.22);
+}
+
+.web-automation-preview-splitter:hover span,
+.web-automation-preview-splitter:focus-visible span,
+.web-automation-split-resizing .web-automation-preview-splitter span {
+    background: #163654;
+    border-color: rgba(125, 211, 252, 0.75);
+    transform: scaleX(1.08);
+}
+
+.web-automation-preview-splitter:focus-visible {
+    outline: none;
+}
+
+.web-automation-workflow-pane {
+    min-height: 0;
+}
+
+[data-web-tool-type] {
+    cursor: -webkit-grab;
+    cursor: grab;
+    user-select: none;
+}
+
+[data-web-tool-type]:active {
+    cursor: -webkit-grabbing !important;
+    cursor: grabbing !important;
+}
+
+html.web-automation-cursor-grab *,
+body.web-automation-cursor-grab * {
+    cursor: -webkit-grab !important;
+    cursor: grab !important;
+}
+
+html.web-automation-cursor-grabbing *,
+body.web-automation-cursor-grabbing * {
+    cursor: -webkit-grabbing !important;
+    cursor: grabbing !important;
+}
+
 .web-automation-step-card {
     cursor: pointer;
     min-height: 6.95rem;
@@ -488,6 +594,8 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
 .web-automation-step-card:has(.web-automation-step-handle:hover),
 .web-automation-step-card:has(.web-automation-step-handle:focus-visible) {
     border-color: rgba(125, 211, 252, 0.42);
+    cursor: -webkit-grab;
+    cursor: grab;
     box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.14), 0 16px 42px rgba(0, 0, 0, 0.24);
 }
 
@@ -497,6 +605,7 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 0.55rem;
     color: rgba(217, 226, 241, 0.84);
+    cursor: -webkit-grab;
     cursor: grab;
     display: inline-flex;
     flex-shrink: 0;
@@ -517,9 +626,14 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
 }
 
 .web-automation-step-handle:active,
+.web-automation-step-list-sorting,
+.web-automation-step-list-sorting *,
+.web-automation-step-card.web-automation-step-drag-ready,
+.web-automation-step-card.web-automation-step-native-dragging,
 .web-automation-step-card.sortable-chosen .web-automation-step-handle,
 .web-automation-step-card.sortable-drag .web-automation-step-handle {
-    cursor: grabbing;
+    cursor: -webkit-grabbing !important;
+    cursor: grabbing !important;
 }
 
 .web-automation-step-grip {
@@ -533,11 +647,15 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
 }
 
 .web-automation-step-list-sorting .web-automation-step-card {
+    cursor: -webkit-grabbing;
+    cursor: grabbing;
     transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), opacity 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .web-automation-step-card.sortable-chosen {
     border-color: rgba(125, 211, 252, 0.55);
+    cursor: -webkit-grabbing;
+    cursor: grabbing;
     box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.26), 0 18px 48px rgba(0, 0, 0, 0.32);
 }
 
@@ -564,6 +682,7 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
     background: rgba(17, 31, 50, 0.98) !important;
     border-color: rgba(125, 211, 252, 0.65) !important;
     box-shadow: 0 22px 54px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(125, 211, 252, 0.2) !important;
+    cursor: -webkit-grabbing !important;
     cursor: grabbing !important;
     opacity: 0.96 !important;
     pointer-events: none;
@@ -603,9 +722,29 @@ input[type="week"]:disabled::-webkit-calendar-picker-indicator {
 }
 
 .web-upload-file-tile {
-    flex: 1 1 10rem;
+    align-items: center;
+    box-sizing: border-box;
+    display: grid;
+    flex: 0 1 auto;
+    gap: 0.65rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 3.75rem;
+    min-width: min(100%, 15rem);
     max-width: 100%;
+    overflow: hidden;
+    padding: 0.75rem;
     transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+    width: fit-content;
+}
+
+.web-upload-file-name {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    text-overflow: ellipsis;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .web-upload-file-tile:hover {

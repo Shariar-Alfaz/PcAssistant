@@ -90,7 +90,7 @@
         </div>
     </div>
 
-    <div id="@PreviewRootId" class="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
+    <div id="@PreviewRootId" class="relative mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
         @if (_preview?.CanUseInlinePreview == true)
         {
             @if (!string.IsNullOrWhiteSpace(_preview.InlinePreviewHtml))
@@ -99,7 +99,7 @@
                         class="h-[26rem] w-full bg-white"
                         srcdoc="@_preview.InlinePreviewHtml"
                         sandbox="allow-forms allow-same-origin allow-popups"
-                        @onload="HighlightSelectedStepAsync">
+                        @onload="PreviewFrameLoadedAsync">
                 </iframe>
             }
             else
@@ -108,7 +108,7 @@
                         class="h-[26rem] w-full bg-white"
                         src="@_preview.InlinePreviewUrl"
                         sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-                        @onload="HighlightSelectedStepAsync">
+                        @onload="PreviewFrameLoadedAsync">
                 </iframe>
             }
         }
@@ -120,6 +120,21 @@
         {
             <div class="flex h-[26rem] items-center justify-center px-6 text-center text-sm text-[#aab6c9]">
                 @_preview?.Message
+            </div>
+        }
+
+        @if (IsPreviewBusy)
+        {
+            <div class="absolute inset-0 z-10 flex h-full min-h-[26rem] items-center justify-center bg-[#091323]/88 px-6 text-center backdrop-blur-sm">
+                <div class="flex w-full max-w-xs flex-col items-center gap-3">
+                    <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                        <div class="h-full w-1/2 animate-[preview-load_1.1s_ease-in-out_infinite] rounded-full bg-cyan-300"></div>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-white">@PreviewLoadingTitle</p>
+                        <p class="mt-1 text-xs text-[#9fb0c8]">@PreviewLoadingMessage</p>
+                    </div>
+                </div>
             </div>
         }
     </div>
@@ -137,9 +152,23 @@
 
     private readonly string FrameId = $"web-preview-frame-{Guid.NewGuid():N}";
     private readonly string PreviewRootId = $"web-preview-root-{Guid.NewGuid():N}";
+    private readonly CancellationTokenSource _componentCancellation = new();
     private WebPreviewDto? _preview;
     private string? _loadedUrl;
     private DotNetObjectReference<WebPreviewPanel>? _reference;
+    private CancellationTokenSource? _previewCancellation;
+    private int _previewRequestId;
+    private bool _disposed;
+    private bool _isPreviewLoading;
+    private bool _isFrameLoading;
+
+    private bool IsPreviewBusy => _isPreviewLoading || _isFrameLoading;
+
+    private string PreviewLoadingTitle => _isPreviewLoading ? "Preparing preview" : "Loading website";
+
+    private string PreviewLoadingMessage => _isPreviewLoading
+        ? "Capturing the latest page view."
+        : "Waiting for the live preview to finish.";
 
     private static string PreviewActionButtonClass(string tone)
     {
@@ -196,8 +225,27 @@
             return;
         }
 
-        _preview = await Preview.CreatePreviewAsync(StartUrl);
-        await OnMessage.InvokeAsync(_preview.Message ?? "Preview refreshed.");
+        var (requestId, cancellationToken) = BeginPreviewRequest();
+
+        try
+        {
+            var preview = await Preview.CreatePreviewAsync(StartUrl, cancellationToken);
+            if (!IsCurrentPreviewRequest(requestId))
+            {
+                return;
+            }
+
+            _preview = preview;
+            _isFrameLoading = HasInlinePreviewFrame(_preview);
+            await OnMessage.InvokeAsync(_preview.Message ?? "Preview refreshed.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            CompletePreviewRequest(requestId);
+        }
     }
 
     private async Task TakeScreenshotAsync()
@@ -207,8 +255,26 @@
             return;
         }
 
-        _preview = await Preview.CaptureScreenshotPreviewAsync(StartUrl);
-        await OnMessage.InvokeAsync(_preview.Message ?? "Screenshot preview updated.");
+        var (requestId, cancellationToken) = BeginPreviewRequest();
+
+        try
+        {
+            var preview = await Preview.CaptureScreenshotPreviewAsync(StartUrl, cancellationToken);
+            if (!IsCurrentPreviewRequest(requestId))
+            {
+                return;
+            }
+
+            _preview = preview;
+            await OnMessage.InvokeAsync(_preview.Message ?? "Screenshot preview updated.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            CompletePreviewRequest(requestId);
+        }
     }
 
     private async Task OpenHeadedPreviewAsync()
@@ -218,10 +284,15 @@
             return;
         }
 
+        var cancellationToken = CurrentPreviewCancellationToken();
+
         try
         {
-            await Preview.OpenHeadedPreviewAsync(StartUrl);
+            await Preview.OpenHeadedPreviewAsync(StartUrl, cancellationToken);
             await OnMessage.InvokeAsync("Headed browser preview opened.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -232,28 +303,44 @@
     private async Task CaptureSelectorAsync()
     {
         _reference ??= DotNetObjectReference.Create(this);
-        var result = await JsRuntime.InvokeAsync<string>("pcAssistantWebAutomation.captureSelector", FrameId, _reference);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureSelector",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
         await OnMessage.InvokeAsync(result);
     }
 
     private async Task TargetClickAsync()
     {
         _reference ??= DotNetObjectReference.Create(this);
-        var result = await JsRuntime.InvokeAsync<string>("pcAssistantWebAutomation.captureClickTarget", FrameId, _reference);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureClickTarget",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
         await OnMessage.InvokeAsync(result);
     }
 
     private async Task TargetInputAsync()
     {
         _reference ??= DotNetObjectReference.Create(this);
-        var result = await JsRuntime.InvokeAsync<string>("pcAssistantWebAutomation.captureInputTarget", FrameId, _reference);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureInputTarget",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
         await OnMessage.InvokeAsync(result);
     }
 
     private async Task TargetUploadAsync()
     {
         _reference ??= DotNetObjectReference.Create(this);
-        var result = await JsRuntime.InvokeAsync<string>("pcAssistantWebAutomation.captureUploadTarget", FrameId, _reference);
+        var result = await JsRuntime.InvokeAsync<string>(
+            "pcAssistantWebAutomation.captureUploadTarget",
+            CurrentPreviewCancellationToken(),
+            FrameId,
+            _reference);
         await OnMessage.InvokeAsync(result);
     }
 
@@ -266,10 +353,17 @@
 
         await JsRuntime.InvokeVoidAsync(
             "pcAssistantWebAutomation.highlightPreviewSelection",
+            CurrentPreviewCancellationToken(),
             FrameId,
             SelectedStep?.SelectorType.ToString(),
             SelectedStep?.Selector,
             SelectedStep?.Value);
+    }
+
+    private async Task PreviewFrameLoadedAsync()
+    {
+        _isFrameLoading = false;
+        await HighlightSelectedStepAsync();
     }
 
     [JSInvokable]
@@ -305,8 +399,69 @@
         return new Uri(path).AbsoluteUri;
     }
 
+    private static bool HasInlinePreviewFrame(WebPreviewDto preview)
+    {
+        return preview.CanUseInlinePreview
+            && (!string.IsNullOrWhiteSpace(preview.InlinePreviewHtml)
+                || !string.IsNullOrWhiteSpace(preview.InlinePreviewUrl));
+    }
+
+    private (int RequestId, CancellationToken CancellationToken) BeginPreviewRequest()
+    {
+        CancelPreviewRequest();
+
+        _previewCancellation = CancellationTokenSource.CreateLinkedTokenSource(_componentCancellation.Token);
+        _previewRequestId++;
+        _isPreviewLoading = true;
+        _isFrameLoading = false;
+        StateHasChanged();
+
+        return (_previewRequestId, _previewCancellation.Token);
+    }
+
+    private void CompletePreviewRequest(int requestId)
+    {
+        if (!IsCurrentPreviewRequest(requestId))
+        {
+            return;
+        }
+
+        _isPreviewLoading = false;
+    }
+
+    private bool IsCurrentPreviewRequest(int requestId)
+    {
+        return !_disposed && requestId == _previewRequestId;
+    }
+
+    private CancellationToken CurrentPreviewCancellationToken()
+    {
+        if (_disposed)
+        {
+            return new CancellationToken(true);
+        }
+
+        return _previewCancellation?.Token ?? _componentCancellation.Token;
+    }
+
+    private void CancelPreviewRequest()
+    {
+        if (_previewCancellation is null)
+        {
+            return;
+        }
+
+        _previewCancellation.Cancel();
+        _previewCancellation.Dispose();
+        _previewCancellation = null;
+    }
+
     public void Dispose()
     {
+        _disposed = true;
+        _componentCancellation.Cancel();
+        CancelPreviewRequest();
+        _componentCancellation.Dispose();
         _reference?.Dispose();
     }
 }

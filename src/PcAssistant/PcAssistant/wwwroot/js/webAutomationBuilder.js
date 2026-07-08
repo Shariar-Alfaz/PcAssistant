@@ -7,6 +7,7 @@ window.pcAssistantWebAutomation = {
 
         this.destroyBuilderSurface(surfaceId);
         this.initializeToolCapture(surface);
+        this.bindToolDragCursors(surface);
 
         if (!window.gsap) {
             return;
@@ -58,6 +59,8 @@ window.pcAssistantWebAutomation = {
             surface.removeEventListener("pointerdown", surface.__pcAssistantToolCapture, true);
             delete surface.__pcAssistantToolCapture;
         }
+        this.unbindToolDragCursors(surface);
+        this.destroyPreviewWorkflowSplitter(surfaceId);
 
         (surface.__pcAssistantBuilderTweens || []).forEach((tween) => tween?.kill?.());
         delete surface.__pcAssistantBuilderTweens;
@@ -81,6 +84,241 @@ window.pcAssistantWebAutomation = {
         surface.__pcAssistantToolCapture = capture;
     },
 
+    bindToolDragCursors(surface) {
+        if (surface.__pcAssistantToolDragCursorHandlers) {
+            return;
+        }
+
+        const toolSelector = "[data-web-tool-type]";
+        const setGrab = (event) => {
+            const tool = event.target.closest(toolSelector);
+            if (tool && surface.contains(tool)) {
+                this.setGrabCursor(true, tool);
+            }
+        };
+        const clearGrab = (event) => {
+            if (document.documentElement.classList.contains("web-automation-cursor-grabbing")) {
+                return;
+            }
+
+            if (!event.relatedTarget || !surface.contains(event.relatedTarget)) {
+                this.setGrabCursor(false);
+                return;
+            }
+
+            if (!event.relatedTarget.closest?.(toolSelector)) {
+                this.setGrabCursor(false);
+            }
+        };
+        const pointerDown = (event) => {
+            const tool = event.target.closest(toolSelector);
+            if (tool && surface.contains(tool)) {
+                this.setDraggingCursor(true, tool);
+            }
+        };
+        const dragStart = (event) => {
+            const tool = event.target.closest(toolSelector);
+            if (!tool || !surface.contains(tool)) {
+                return;
+            }
+
+            this.setDraggingCursor(true, tool);
+            event.dataTransfer.effectAllowed = "copy";
+            event.dataTransfer.setData("text/plain", tool.dataset.webToolType || "");
+        };
+        const clearDragging = () => this.setDraggingCursor(false);
+
+        surface.addEventListener("pointerover", setGrab);
+        surface.addEventListener("pointerout", clearGrab);
+        surface.addEventListener("pointerdown", pointerDown);
+        surface.addEventListener("dragstart", dragStart);
+        surface.addEventListener("dragend", clearDragging);
+        window.addEventListener("pointerup", clearDragging);
+
+        surface.__pcAssistantToolDragCursorHandlers = {
+            setGrab,
+            clearGrab,
+            pointerDown,
+            dragStart,
+            clearDragging
+        };
+    },
+
+    unbindToolDragCursors(surface) {
+        const handlers = surface.__pcAssistantToolDragCursorHandlers;
+        if (!handlers) {
+            return;
+        }
+
+        surface.removeEventListener("pointerover", handlers.setGrab);
+        surface.removeEventListener("pointerout", handlers.clearGrab);
+        surface.removeEventListener("pointerdown", handlers.pointerDown);
+        surface.removeEventListener("dragstart", handlers.dragStart);
+        surface.removeEventListener("dragend", handlers.clearDragging);
+        window.removeEventListener("pointerup", handlers.clearDragging);
+        delete surface.__pcAssistantToolDragCursorHandlers;
+    },
+
+    initializePreviewWorkflowSplitter(surfaceId) {
+        const surface = document.getElementById(surfaceId);
+        const split = surface?.querySelector("[data-web-preview-workflow-split]");
+        const splitter = split?.querySelector("[data-web-preview-workflow-splitter]");
+        const previewPane = split?.querySelector(".web-automation-preview-pane");
+        if (!surface || !split || !splitter || !previewPane) {
+            return;
+        }
+
+        this.destroyPreviewWorkflowSplitter(surfaceId);
+
+        const storageKey = split.dataset.webPreviewWorkflowStorageKey || "pc-assistant:web-automation:preview-workflow-split";
+        const minHeight = 260;
+        const maxHeight = 760;
+        let isDragging = false;
+        let startY = 0;
+        let startHeight = 0;
+        let pendingHeight = null;
+        let animationFrame = 0;
+
+        const getPreviewContent = () => previewPane.querySelector("iframe, img, [id^='web-preview-root-'] > div:first-child")
+            || previewPane.querySelector("[id^='web-preview-root-']");
+        const clampHeight = (height) => {
+            const splitRect = split.getBoundingClientRect();
+            const previewContent = getPreviewContent();
+            const previewChrome = previewContent
+                ? previewPane.getBoundingClientRect().height - previewContent.getBoundingClientRect().height
+                : 0;
+            const dynamicMax = Math.max(minHeight, Math.min(maxHeight, splitRect.height - previewChrome - 260));
+            return Math.round(Math.min(Math.max(height, minHeight), dynamicMax));
+        };
+        const setHeight = (height, persist) => {
+            const nextHeight = clampHeight(height);
+            split.style.setProperty("--web-automation-preview-height", `${nextHeight}px`);
+            if (persist) {
+                try {
+                    localStorage.setItem(storageKey, String(nextHeight));
+                } catch {
+                    // Ignore storage failures; resizing still works for this session.
+                }
+            }
+        };
+        const scheduleHeight = (height) => {
+            pendingHeight = height;
+            if (animationFrame) {
+                return;
+            }
+
+            animationFrame = requestAnimationFrame(() => {
+                animationFrame = 0;
+                setHeight(pendingHeight, false);
+            });
+        };
+        const readStoredHeight = () => {
+            try {
+                const stored = Number.parseInt(localStorage.getItem(storageKey) || "", 10);
+                return Number.isFinite(stored) ? stored : null;
+            } catch {
+                return null;
+            }
+        };
+        const beginResize = (event) => {
+            if (event.button !== undefined && event.button !== 0) {
+                return;
+            }
+
+            event.preventDefault();
+            isDragging = true;
+            startY = event.clientY;
+            startHeight = getPreviewContent()?.getBoundingClientRect().height
+                || previewPane.getBoundingClientRect().height;
+            splitter.setPointerCapture?.(event.pointerId);
+            split.classList.add("web-automation-split-resizing");
+        };
+        const resize = (event) => {
+            if (!isDragging) {
+                return;
+            }
+
+            event.preventDefault();
+            scheduleHeight(startHeight + event.clientY - startY);
+        };
+        const endResize = (event) => {
+            if (!isDragging) {
+                return;
+            }
+
+            isDragging = false;
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+                animationFrame = 0;
+            }
+            splitter.releasePointerCapture?.(event.pointerId);
+            split.classList.remove("web-automation-split-resizing");
+            setHeight(pendingHeight ?? getPreviewContent()?.getBoundingClientRect().height ?? startHeight, true);
+            pendingHeight = null;
+        };
+        const reset = () => {
+            try {
+                localStorage.removeItem(storageKey);
+            } catch {
+            }
+
+            split.style.removeProperty("--web-automation-preview-height");
+        };
+        const keyResize = (event) => {
+            const currentHeight = getPreviewContent()?.getBoundingClientRect().height
+                || previewPane.getBoundingClientRect().height;
+            if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setHeight(currentHeight - 24, true);
+            } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setHeight(currentHeight + 24, true);
+            } else if (event.key === "Home") {
+                event.preventDefault();
+                setHeight(minHeight, true);
+            } else if (event.key === "End") {
+                event.preventDefault();
+                setHeight(maxHeight, true);
+            }
+        };
+
+        const storedHeight = readStoredHeight();
+        if (storedHeight !== null) {
+            requestAnimationFrame(() => setHeight(storedHeight, false));
+        }
+
+        splitter.addEventListener("pointerdown", beginResize);
+        splitter.addEventListener("pointermove", resize);
+        splitter.addEventListener("pointerup", endResize);
+        splitter.addEventListener("pointercancel", endResize);
+        splitter.addEventListener("dblclick", reset);
+        splitter.addEventListener("keydown", keyResize);
+        surface.__pcAssistantPreviewWorkflowSplitter = {
+            splitter,
+            beginResize,
+            resize,
+            endResize,
+            reset,
+            keyResize
+        };
+    },
+
+    destroyPreviewWorkflowSplitter(surfaceId) {
+        const surface = document.getElementById(surfaceId);
+        const state = surface?.__pcAssistantPreviewWorkflowSplitter;
+        if (!surface || !state) {
+            return;
+        }
+
+        state.splitter.removeEventListener("pointerdown", state.beginResize);
+        state.splitter.removeEventListener("pointermove", state.resize);
+        state.splitter.removeEventListener("pointerup", state.endResize);
+        state.splitter.removeEventListener("pointercancel", state.endResize);
+        state.splitter.removeEventListener("dblclick", state.reset);
+        state.splitter.removeEventListener("keydown", state.keyResize);
+        delete surface.__pcAssistantPreviewWorkflowSplitter;
+    },
+
     initializeSortableSteps(elementId, dotNetRef) {
         const element = document.getElementById(elementId);
         if (!element) {
@@ -89,6 +327,7 @@ window.pcAssistantWebAutomation = {
 
         if (element.__pcAssistantSortable) {
             element.__pcAssistantDotNetRef = dotNetRef;
+            this.bindStepHandleCursors(element);
             return;
         }
 
@@ -111,6 +350,8 @@ window.pcAssistantWebAutomation = {
                 fallbackOnBody: true,
                 forceFallback: true,
                 swapThreshold: 0.65,
+                onChoose: (event) => this.markDragReady(event.item),
+                onUnchoose: (event) => this.clearDragReady(event.item),
                 onStart: (event) => this.animateDragStart(event.item),
                 onClone: (event) => this.prepareDragClone(event.clone),
                 onEnd: (event) => {
@@ -121,6 +362,8 @@ window.pcAssistantWebAutomation = {
             });
             element.__pcAssistantSortable = sortable;
             element.__pcAssistantDotNetRef = dotNetRef;
+            this.bindStepHandleCursors(element);
+            this.syncStepOrderSignature(element);
             this.animateStepCards(element);
             return;
         }
@@ -133,7 +376,10 @@ window.pcAssistantWebAutomation = {
             }
 
             state.dragged = card;
+            this.setDraggingCursor(true);
             card.classList.add("opacity-60");
+            element.classList.add("web-automation-step-list-sorting");
+            card.classList.add("web-automation-step-native-dragging");
             event.dataTransfer.effectAllowed = "move";
         };
         const onDragOver = (event) => {
@@ -149,9 +395,11 @@ window.pcAssistantWebAutomation = {
         };
         const onDragEnd = () => {
             if (state.dragged) {
-                state.dragged.classList.remove("opacity-60");
+                state.dragged.classList.remove("opacity-60", "web-automation-step-native-dragging");
             }
 
+            element.classList.remove("web-automation-step-list-sorting");
+            this.setDraggingCursor(false);
             state.dragged = null;
             this.notifyStepOrder(element, dotNetRef);
         };
@@ -162,6 +410,8 @@ window.pcAssistantWebAutomation = {
         element.addEventListener("dragend", onDragEnd);
         element.__pcAssistantNativeSortable = { onDragStart, onDragOver, onDragEnd };
         element.__pcAssistantDotNetRef = dotNetRef;
+        this.bindStepHandleCursors(element);
+        this.syncStepOrderSignature(element);
         this.animateStepCards(element);
     },
 
@@ -170,6 +420,8 @@ window.pcAssistantWebAutomation = {
         if (!element) {
             return;
         }
+
+        this.setDraggingCursor(false);
 
         if (element.__pcAssistantSortable) {
             element.__pcAssistantSortable.destroy();
@@ -184,7 +436,63 @@ window.pcAssistantWebAutomation = {
             delete element.__pcAssistantNativeSortable;
         }
 
+        this.unbindStepHandleCursors(element);
         delete element.__pcAssistantDotNetRef;
+    },
+
+    bindStepHandleCursors(element) {
+        if (element.__pcAssistantHandleCursorHandlers) {
+            return;
+        }
+
+        const setGrab = (event) => {
+            const handle = event.target.closest(".web-automation-step-handle");
+            if (handle) {
+                this.setGrabCursor(true, handle);
+            }
+        };
+        const clearGrab = (event) => {
+            if (document.documentElement.classList.contains("web-automation-cursor-grabbing")) {
+                return;
+            }
+
+            if (!event.relatedTarget || !element.contains(event.relatedTarget)) {
+                this.setGrabCursor(false);
+                return;
+            }
+
+            if (!event.relatedTarget.closest?.(".web-automation-step-handle")) {
+                this.setGrabCursor(false);
+            }
+        };
+        const pointerDown = (event) => {
+            const handle = event.target.closest(".web-automation-step-handle");
+            if (handle) {
+                const card = handle.closest("[data-step-id]");
+                this.setDraggingCursor(true, card || handle);
+            }
+        };
+        const pointerUp = () => this.setDraggingCursor(false);
+
+        element.addEventListener("pointerover", setGrab);
+        element.addEventListener("pointerout", clearGrab);
+        element.addEventListener("pointerdown", pointerDown);
+        window.addEventListener("pointerup", pointerUp);
+
+        element.__pcAssistantHandleCursorHandlers = { setGrab, clearGrab, pointerDown, pointerUp };
+    },
+
+    unbindStepHandleCursors(element) {
+        const handlers = element.__pcAssistantHandleCursorHandlers;
+        if (!handlers) {
+            return;
+        }
+
+        element.removeEventListener("pointerover", handlers.setGrab);
+        element.removeEventListener("pointerout", handlers.clearGrab);
+        element.removeEventListener("pointerdown", handlers.pointerDown);
+        window.removeEventListener("pointerup", handlers.pointerUp);
+        delete element.__pcAssistantHandleCursorHandlers;
     },
 
     bindUploadDropZone(elementId, dotNetRef) {
@@ -302,19 +610,60 @@ window.pcAssistantWebAutomation = {
             return Promise.resolve();
         }
 
-        element.__pcAssistantLastOrderSignature = signature;
-        return dotNetRef.invokeMethodAsync("OnStepOrderChanged", ids);
+        return dotNetRef.invokeMethodAsync("OnStepOrderChanged", ids)
+            .then(() => {
+                element.__pcAssistantLastOrderSignature = signature;
+            });
+    },
+
+    syncStepOrderSignature(element) {
+        const ids = element.__pcAssistantSortable
+            ? element.__pcAssistantSortable.toArray()
+            : Array.from(element.querySelectorAll("[data-step-id]")).map((item) => item.dataset.stepId);
+        element.__pcAssistantLastOrderSignature = ids.join("|");
+    },
+
+    syncStepDomOrder(stepIds) {
+        const list = document.querySelector("[data-web-step-list]");
+        if (!list || !Array.isArray(stepIds) || stepIds.length === 0) {
+            return;
+        }
+
+        const ids = stepIds.map((id) => String(id));
+        if (list.__pcAssistantSortable) {
+            list.__pcAssistantSortable.sort(ids, true);
+        } else {
+            ids.forEach((id) => {
+                const item = list.querySelector(`[data-step-id="${CSS.escape(id)}"]`);
+                if (item) {
+                    list.appendChild(item);
+                }
+            });
+        }
+
+        list.__pcAssistantLastOrderSignature = ids.join("|");
     },
 
     animateDragStart(item) {
+        this.setDraggingCursor(true, item);
         if (!window.gsap || !item) {
+            item?.classList.add("web-automation-step-native-dragging");
             return;
         }
 
         const list = item.closest("[data-web-step-list]");
         list?.classList.add("web-automation-step-list-sorting");
+        item.classList.add("web-automation-step-native-dragging");
         window.gsap.killTweensOf(item);
         window.gsap.fromTo(item, { scale: 1 }, { scale: 1.012, duration: 0.14, ease: "power2.out" });
+    },
+
+    markDragReady(item) {
+        item?.classList.add("web-automation-step-drag-ready");
+    },
+
+    clearDragReady(item) {
+        item?.classList.remove("web-automation-step-drag-ready");
     },
 
     prepareDragClone(clone) {
@@ -331,11 +680,18 @@ window.pcAssistantWebAutomation = {
 
     cleanupDragState(element, item) {
         element?.classList.remove("web-automation-step-list-sorting");
+        this.setDraggingCursor(false);
         if (!item) {
             return;
         }
 
-        item.classList.remove("sortable-chosen", "sortable-ghost", "sortable-drag", "sortable-fallback");
+        item.classList.remove(
+            "sortable-chosen",
+            "sortable-ghost",
+            "sortable-drag",
+            "sortable-fallback",
+            "web-automation-step-drag-ready",
+            "web-automation-step-native-dragging");
         if (window.gsap) {
             window.gsap.killTweensOf(item);
             window.gsap.set(item, { clearProps: "transform,opacity,boxShadow,borderColor" });
@@ -343,6 +699,45 @@ window.pcAssistantWebAutomation = {
             item.style.transform = "";
             item.style.opacity = "";
         }
+    },
+
+    setDraggingCursor(isDragging, target) {
+        document.documentElement.classList.toggle("web-automation-cursor-grabbing", isDragging);
+        document.body.classList.toggle("web-automation-cursor-grabbing", isDragging);
+        this.applyCursorOverride(isDragging ? "grabbing" : null, target);
+        if (isDragging) {
+            this.setGrabCursor(false);
+        }
+    },
+
+    setGrabCursor(isGrab, target) {
+        document.documentElement.classList.toggle("web-automation-cursor-grab", isGrab);
+        document.body.classList.toggle("web-automation-cursor-grab", isGrab);
+        this.applyCursorOverride(isGrab ? "grab" : null, target);
+    },
+
+    applyCursorOverride(cursor, target) {
+        const previous = document.__pcAssistantCursorOverrideTargets || [];
+        previous.forEach((element) => element?.style?.removeProperty("cursor"));
+
+        if (!cursor) {
+            document.__pcAssistantCursorOverrideTargets = [];
+            return;
+        }
+
+        const targets = [
+            document.documentElement,
+            document.body,
+            document.querySelector("[data-web-step-list]"),
+            target,
+            target?.closest?.("[data-step-id]"),
+            target?.querySelector?.(".web-automation-step-handle")
+        ].filter(Boolean);
+
+        [...new Set(targets)].forEach((element) => {
+            element.style.setProperty("cursor", cursor, "important");
+        });
+        document.__pcAssistantCursorOverrideTargets = targets;
     },
 
     animateStepCards(element) {
@@ -373,6 +768,15 @@ window.pcAssistantWebAutomation = {
     animateStepDeleted(listId, stepId) {
         const list = document.getElementById(listId);
         const item = list?.querySelector(`[data-step-id="${stepId}"]`);
+        return this.animateStepDeletedItem(item);
+    },
+
+    animateStepDeletedById(stepId) {
+        const item = document.querySelector(`[data-step-id="${stepId}"]`);
+        return this.animateStepDeletedItem(item);
+    },
+
+    animateStepDeletedItem(item) {
         if (!window.gsap || !item) {
             return Promise.resolve();
         }

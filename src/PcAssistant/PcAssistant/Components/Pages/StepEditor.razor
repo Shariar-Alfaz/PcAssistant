@@ -124,6 +124,7 @@
     private int _retryCount;
     private bool _isOptional;
     private bool _takeScreenshot;
+    private readonly CancellationTokenSource _componentCancellation = new();
     private DotNetObjectReference<StepEditor>? _reference;
     private string? _uploadDropMessage;
     private readonly string UploadDropZoneId = $"web-upload-drop-{Guid.NewGuid():N}";
@@ -161,7 +162,7 @@
         _stepType = Step.StepType;
         _selectorType = Step.SelectorType;
         _selector = Step.Selector;
-        _value = Step.Value;
+        _value = NormalizeUploadFileValue(Step);
         _url = Step.Url;
         _description = Step.Description;
         _timeoutMs = Step.TimeoutMs;
@@ -179,13 +180,21 @@
         }
 
         _reference ??= DotNetObjectReference.Create(this);
-        await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.bindUploadDropZone", UploadDropZoneId, _reference);
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantWebAutomation.bindUploadDropZone",
+            _componentCancellation.Token,
+            UploadDropZoneId,
+            _reference);
 
         var uploadSignature = string.Join("|", UploadFilePaths);
         if (!string.Equals(uploadSignature, _lastUploadRailSignature, StringComparison.Ordinal))
         {
             _lastUploadRailSignature = uploadSignature;
-            await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.animateUploadRail", UploadRailId, UploadFilePaths.Count);
+            await JsRuntime.InvokeVoidAsync(
+                "pcAssistantWebAutomation.animateUploadRail",
+                _componentCancellation.Token,
+                UploadRailId,
+                UploadFilePaths.Count);
         }
     }
 
@@ -250,20 +259,18 @@
             <span id="@UploadRailId" class="web-upload-file-rail mt-2" data-upload-count="@UploadFilePaths.Count" aria-hidden="true">
                 <span class="web-upload-file-rail-fill"></span>
             </span>
-            <span class="mt-2 flex flex-wrap gap-2">
+            <span class="mt-2 flex min-w-0 flex-wrap gap-2">
                 @for (var index = 0; index < UploadFilePaths.Count; index++)
                 {
                     var fileIndex = index;
                     var path = UploadFilePaths[fileIndex];
-                    <span class="web-upload-file-tile relative flex min-h-20 min-w-0 items-start gap-2 rounded-xl border border-white/10 bg-black/20 p-2.5 pr-9" title="@path">
-                        <span class="flex min-w-0 items-center gap-2">
-                            <span class="@UploadFileIconClass(path)" aria-hidden="true">@UploadFileIcon(path)</span>
-                            <span class="min-w-0">
-                                <span class="block truncate text-xs font-semibold text-white">@Path.GetFileName(path)</span>
-                                <span class="mt-0.5 block text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[#8fa1bc]">@UploadFileTypeLabel(path)</span>
-                            </span>
+                    <span class="web-upload-file-tile rounded-xl border border-white/10 bg-black/20" title="@path">
+                        <span class="@UploadFileIconClass(path)" aria-hidden="true">@UploadFileIcon(path)</span>
+                        <span class="min-w-0">
+                            <span class="web-upload-file-name block text-xs font-semibold leading-5 text-white">@Path.GetFileName(path)</span>
+                            <span class="block truncate text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[#8fa1bc]">@UploadFileTypeLabel(path)</span>
                         </span>
-                        <button class="web-upload-file-badge-remove absolute right-2 top-2"
+                        <button class="web-upload-file-badge-remove"
                                 type="button"
                                 title="Remove file"
                                 aria-label="Remove file"
@@ -380,7 +387,9 @@
 
     private async Task PickUploadFilesAsync()
     {
-        var paths = await LocationPicker.PickFilesAsync(allowMultiple: true);
+        var paths = await LocationPicker.PickFilesAsync(
+            allowMultiple: true,
+            cancellationToken: _componentCancellation.Token);
         if (paths.Count == 0)
         {
             return;
@@ -408,7 +417,7 @@
         {
             var safeFileName = GetUniqueFileName(GetSafeFileName(file.Name), usedNames);
             var path = Path.Combine(dropDirectory, safeFileName);
-            await File.WriteAllBytesAsync(path, Convert.FromBase64String(file.Base64));
+            await File.WriteAllBytesAsync(path, Convert.FromBase64String(file.Base64), _componentCancellation.Token);
             paths.Add(path);
         }
 
@@ -441,7 +450,12 @@
 
     public async ValueTask DisposeAsync()
     {
-        await JsRuntime.InvokeVoidAsync("pcAssistantWebAutomation.unbindUploadDropZone", UploadDropZoneId);
+        await JsRuntime.InvokeVoidAsync(
+            "pcAssistantWebAutomation.unbindUploadDropZone",
+            _componentCancellation.Token,
+            UploadDropZoneId);
+        _componentCancellation.Cancel();
+        _componentCancellation.Dispose();
         _reference?.Dispose();
     }
 
@@ -502,7 +516,20 @@
             ? Array.Empty<string>()
             : value
                 .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(path => !IsLegacyUploadPlaceholder(path))
                 .ToArray();
+    }
+
+    private static string? NormalizeUploadFileValue(WebAutomationStepDto step)
+    {
+        return step.StepType == WebAutomationStepType.UploadFile && IsLegacyUploadPlaceholder(step.Value)
+            ? null
+            : step.Value;
+    }
+
+    private static bool IsLegacyUploadPlaceholder(string? value)
+    {
+        return string.Equals(value?.Trim(), @"C:\path\to\file.ext", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string UploadFileIconClass(string path)

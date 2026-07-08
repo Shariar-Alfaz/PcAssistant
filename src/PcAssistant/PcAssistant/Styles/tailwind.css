@@ -9,6 +9,20 @@
 @source not "../bin";
 @source not "../obj";
 
+@keyframes preview-load {
+    0% {
+        transform: translateX(-120%);
+    }
+
+    50% {
+        transform: translateX(40%);
+    }
+
+    100% {
+        transform: translateX(220%);
+    }
+}
+
 @layer components {
     .assistant-shell {
         scrollbar-color: rgba(142, 197, 255, 0.42) rgba(8, 13, 25, 0.24);
